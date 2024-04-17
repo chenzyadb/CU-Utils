@@ -16,65 +16,87 @@ namespace CU
 	class EventTransfer
 	{
 		public:
-		typedef const void* TransData;
-		typedef std::function<void(TransData)> Subscriber;
+			typedef const void* TransData;
+			typedef void* Instance;
+			typedef std::function<void(TransData)> Subscriber;
 
-		template <typename _Ty>
-		static const _Ty &GetData(const TransData &transData)
-		{
-			auto data_ptr = reinterpret_cast<const _Ty*>(transData);
-			return *data_ptr;
-		}
+			template <typename _Ty>
+			static const _Ty &GetData(const TransData &transData)
+			{
+				auto dataPtr = reinterpret_cast<const _Ty*>(transData);
+				return *dataPtr;
+			}
 
-		template <typename _Ty>
-		static void Post(const std::string &event, const _Ty &data)
-		{
-			auto transData = reinterpret_cast<TransData>(std::addressof(data));
-			auto instance = getInstance_();
-			instance->postEvent_(event, transData);
-		}
+			template <typename _Ty>
+			static void Post(const std::string &event, const _Ty &data)
+			{
+				auto transData = reinterpret_cast<TransData>(std::addressof(data));
+				GetInstance_()->postEvent_(event, transData);
+			}
 
-		static void Subscribe(const std::string &event, const Subscriber &subscriber)
-		{
-			auto instance = getInstance_();
-			instance->addSubscriber_(event, subscriber);
-		}
+			static void Subscribe(const std::string &event, const Instance &instance, const Subscriber &subscriber)
+			{
+				GetInstance_()->addSubscriber_(event, instance, subscriber);
+			}
+
+			static void Unsubscribe(const std::string &event, const Instance &instance)
+			{
+				GetInstance_()->removeSubscriber_(event, instance);
+			}
 
 		private:
-		EventTransfer() : eventSubMap_(), mtx_() { }
-		EventTransfer(const EventTransfer &other) = delete;
-		EventTransfer(EventTransfer &&other) = delete;
-		EventTransfer &operator=(const EventTransfer &other) = delete;
+			EventTransfer() : eventSubscribers_(), mtx_() { }
+			EventTransfer(const EventTransfer &other) = delete;
+			EventTransfer(EventTransfer &&other) = delete;
+			EventTransfer &operator=(const EventTransfer &other) = delete;
 
-		static EventTransfer* getInstance_()
-		{
-			static EventTransfer* instance = nullptr;
-			if (instance == nullptr) {
-				instance = new EventTransfer();
+			static EventTransfer* GetInstance_()
+			{
+				static EventTransfer* instance = nullptr;
+				if (instance == nullptr) {
+					instance = new EventTransfer();
+				}
+				return instance;
 			}
-			return instance;
-		}
 
-		void postEvent_(const std::string &event, const TransData &transData)
-		{
-			std::vector<Subscriber> subscribers{};
+			void postEvent_(const std::string &event, const TransData &transData)
+			{
+				std::unordered_map<Instance, Subscriber> subscribers{};
+				{
+					std::unique_lock<std::mutex> lck(mtx_);
+					auto subscribersIter = eventSubscribers_.find(event);
+					if (subscribersIter == eventSubscribers_.end()) {
+						return;
+					}
+					subscribers = subscribersIter->second;
+				}
+				for (auto iter = subscribers.begin(); iter != subscribers.end(); iter++) {
+					(iter->second)(transData);
+				}
+			}
+
+			void addSubscriber_(const std::string &event, const Instance &instance, const Subscriber &subscriber)
 			{
 				std::unique_lock<std::mutex> lck(mtx_);
-				subscribers = eventSubMap_[event];
+				eventSubscribers_[event][instance] = subscriber;
 			}
-			for (const auto &subscriber : subscribers) {
-				subscriber(transData);
+
+			void removeSubscriber_(const std::string &event, const Instance &instance)
+			{
+				std::unique_lock<std::mutex> lck(mtx_);
+				auto subscribersIter = eventSubscribers_.find(event);
+				if (subscribersIter == eventSubscribers_.end()) {
+					return;
+				}
+				auto &subscribers = subscribersIter->second;
+				auto removeIter = subscribers.find(instance);
+				if (removeIter != subscribers.end()) {
+					subscribers.erase(removeIter);
+				}
 			}
-		}
 
-		void addSubscriber_(const std::string &event, const Subscriber &subscriber)
-		{
-			std::unique_lock<std::mutex> lck(mtx_);
-			eventSubMap_[event].emplace_back(subscriber);
-		}
-
-		std::unordered_map<std::string, std::vector<Subscriber>> eventSubMap_;
-		std::mutex mtx_;
+			std::unordered_map<std::string, std::unordered_map<Instance, Subscriber>> eventSubscribers_;
+			std::mutex mtx_;
 	};
 }
 
