@@ -9,6 +9,8 @@
 #include <mutex>
 #include <functional>
 
+#define TIMER_LOOP(TIMER) while((TIMER)._Timer_Condition())
+
 namespace CU
 {
 	class TimerExcept : public std::exception
@@ -28,9 +30,9 @@ namespace CU
 	class Timer
 	{
 		public:
-			typedef std::function<void(void)> TimeOutCallback;
+			typedef std::function<void(void)> Task;
 
-			static void SingleShot(time_t interval, const TimeOutCallback &callback)
+			static void SingleShot(time_t interval, const Task &callback)
 			{
 				std::thread timerThread([interval, callback]() {
 					std::this_thread::sleep_for(std::chrono::milliseconds(interval));
@@ -39,16 +41,7 @@ namespace CU
 				timerThread.detach();
 			}
 
-			Timer() : interval_(0), callback_(), started_(false), mtx_(), cv_(), paused_(false) { }
-
-			Timer(time_t interval, const TimeOutCallback &callback) : 
-				interval_(interval), 
-				callback_(callback),
-				started_(false),
-				mtx_(),
-				cv_(),
-				paused_(false)
-			{ }
+			Timer() : interval_(0), loop_(), started_(false), mtx_(), cv_(), paused_(false) { }
 
 			~Timer()
 			{
@@ -57,17 +50,41 @@ namespace CU
 				}
 			}
 
+			bool _Timer_Condition()
+			{
+				if (paused_) {
+					std::unique_lock<std::mutex> lock(mtx_);
+					while (paused_) {
+						cv_.wait(lock);
+					}
+				}
+				if (!started_) {
+					return false;
+				}
+				std::this_thread::sleep_for(std::chrono::milliseconds(interval_));
+				return true;
+			}
+
 			void setInterval(time_t interval)
 			{
 				interval_ = interval;
 			}
 
-			void setTimeOutCallback(const TimeOutCallback &callback)
+			void setLoop(const Task &loop)
 			{
 				if (started_) {
 					throw TimerExcept("Timer already started.");
 				}
-				callback_ = callback;
+				loop_ = loop;
+			}
+
+			void setTimeOutCallback(const Task &callback)
+			{
+				setLoop([this, callback]() {
+					TIMER_LOOP(*this) { 
+						callback();
+					}
+				});
 			}
 
 			void start()
@@ -75,8 +92,11 @@ namespace CU
 				if (started_) {
 					throw TimerExcept("Timer already started.");
 				}
+				if (!loop_) {
+					throw TimerExcept("Task not exist.");
+				}
 				started_ = true;
-				std::thread timerThread(std::bind(&Timer::TimerLoop_, this));
+				std::thread timerThread(loop_);
 				timerThread.detach();
 			}
 
@@ -101,33 +121,16 @@ namespace CU
 				if (!started_) {
 					throw TimerExcept("Timer has not been started.");
 				}
+				started_ = false;
 				if (paused_) {
 					continueTimer();
 				}
-				started_ = false;
 				std::this_thread::sleep_for(std::chrono::milliseconds(interval_));
 			}
 
 		private:
-			void TimerLoop_()
-			{
-				for (;;) {
-					{
-						std::unique_lock<std::mutex> lock(mtx_);
-						while (paused_) {
-							cv_.wait(lock);
-						}
-					}
-					if (!started_) {
-						break;
-					}
-					std::this_thread::sleep_for(std::chrono::milliseconds(interval_));
-					callback_();
-				}
-			}
-
 			volatile time_t interval_;
-			TimeOutCallback callback_;
+			Task loop_;
 			volatile bool started_;
 			std::mutex mtx_;
 			std::condition_variable cv_;
