@@ -9,19 +9,21 @@ CU::JSONItem::_Init_Val CU::JSONItem::_To_Init_Val(const std::string &JSONRaw)
 		return initVal;
 	};
 
-	switch (JSONRaw.front()) {
+	auto rawData = JSONRaw.data();
+	auto len = JSONRaw.length();
+	switch (*rawData) {
 		case '{':
-			if (JSONRaw.back() == '}') {
+			if (*(rawData + len - 1) == '}') {
 				return createInitVal(ItemType::OBJECT, new JSONObject(JSONRaw));
 			}
 			break;
 		case '[':
-			if (JSONRaw.back() == ']') {
+			if (*(rawData + len - 1) == ']') {
 				return createInitVal(ItemType::ARRAY, new JSONArray(JSONRaw));
 			}
 			break;
 		case '\"':
-			if (JSONRaw.back() == '\"') {
+			if (*(rawData + len - 1) == '\"') {
 				return createInitVal(ItemType::STRING, JSONRaw.substr(1, JSONRaw.size() - 2));
 			}
 			break;
@@ -37,7 +39,7 @@ CU::JSONItem::_Init_Val CU::JSONItem::_To_Init_Val(const std::string &JSONRaw)
 		case '8':
 		case '9':
 			{
-				auto num = atof(JSONRaw.c_str());
+				auto num = atof(rawData);
 				if (num != 0) {
 					if (num == static_cast<int64_t>(num)) {
 						if (num > static_cast<double>(INT_MAX) || num < static_cast<double>(INT_MIN)) {
@@ -48,23 +50,25 @@ CU::JSONItem::_Init_Val CU::JSONItem::_To_Init_Val(const std::string &JSONRaw)
 					} else {
 						return createInitVal(ItemType::DOUBLE, num);
 					}
-				} else if (JSONRaw == "0") {
+				} else if (memcmp(rawData, "0", 1) == 0) {
 					return createInitVal(ItemType::INTEGER, 0);
-				} else if (JSONRaw == "0.0") {
+				} else if (memcmp(rawData, "0.0", 3) == 0) {
 					return createInitVal(ItemType::DOUBLE, 0.0);
 				}
 			}
 			break;
 		case 't':
-		case 'f':
-			if (JSONRaw == "true") {
+			if (memcmp(rawData, "true", 4) == 0) {
 				return createInitVal(ItemType::BOOLEAN, true);
-			} else if (JSONRaw == "false") {
+			}
+			break;
+		case 'f':
+			if (memcmp(rawData, "false", 5) == 0) {
 				return createInitVal(ItemType::BOOLEAN, false);
 			}
 			break;
 		case 'n':
-			if (JSONRaw == "null") {
+			if (memcmp(rawData, "null", 4) == 0) {
 				return createInitVal(ItemType::ITEM_NULL, ItemNull());
 			}
 			break;
@@ -142,24 +146,21 @@ CU::JSONItem::JSONItem(JSONItem &&other) noexcept :
 	type_(other.type()),
 	value_(ItemNull())
 {
-	if (std::addressof(other) == this) {
-		return;
-	}
-	const auto &other_value = other.value();
+	const auto &otherValue = other.value();
 	if (type_ == ItemType::ARRAY) {
-		const auto &jsonArray = *(std::get<JSONArray*>(other_value));
+		const auto &jsonArray = *(std::get<JSONArray*>(otherValue));
 		value_ = new JSONArray(jsonArray);
 	} else if (type_ == ItemType::OBJECT) {
-		const auto &jsonObject = *(std::get<JSONObject*>(other_value));
+		const auto &jsonObject = *(std::get<JSONObject*>(otherValue));
 		value_ = new JSONObject(jsonObject);
 	} else {
-		value_ = other_value;
+		value_ = otherValue;
 	}
 }
 
 CU::JSONItem::JSONItem(_Init_Val &&initVal) noexcept :
-	type_(initVal.type),
-	value_(initVal.value)
+	type_(std::move(initVal.type)),
+	value_(std::move(initVal.value))
 { }
 
 CU::JSONItem::~JSONItem()
@@ -591,12 +592,7 @@ CU::JSONArray::JSONArray(const JSONArray &other) : data_()
 	}
 }
 
-CU::JSONArray::JSONArray(JSONArray &&other) noexcept : data_()
-{
-	if (std::addressof(other) != this) {
-		data_ = other.data();
-	}
-}
+CU::JSONArray::JSONArray(JSONArray &&other) noexcept : data_(other.data()) { }
 
 CU::JSONArray::~JSONArray() { }
 
@@ -1028,13 +1024,10 @@ CU::JSONObject::JSONObject(const JSONObject &other) : data_(), order_()
 	}
 }
 
-CU::JSONObject::JSONObject(JSONObject &&other) noexcept : data_(), order_()
-{
-	if (std::addressof(other) != this) {
-		data_ = other.data();
-		order_ = other.order();
-	}
-}
+CU::JSONObject::JSONObject(JSONObject &&other) noexcept : 
+	data_(other.data()), 
+	order_(other.order())
+{ }
 
 CU::JSONObject::~JSONObject() { }
 

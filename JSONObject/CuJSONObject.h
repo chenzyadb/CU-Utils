@@ -60,9 +60,6 @@ namespace CU
 				case '\"':
 					JSONRaw += "\\\"";
 					break;
-				case '\'':
-					JSONRaw += "\\\'";
-					break;
 				case '\n':
 					JSONRaw += "\\n";
 					break;
