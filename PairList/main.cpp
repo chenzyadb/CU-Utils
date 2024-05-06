@@ -14,7 +14,7 @@ int main()
 
     std::cout << "front: " << list.front().first << " " << list.front().second << std::endl;
     std::cout << "back: " << list.back().first << " " << list.back().second << std::endl;
-    for (auto [key, value] : list) {
+    for (const auto &[key, value] : list) {
         std::cout << key << " " << value << std::endl;
     }
     std::cout << "size: " << list.end() - list.begin() << std::endl;
@@ -24,7 +24,7 @@ int main()
 
     std::cout << list[1] << std::endl;
     std::cout << list("Pair") << std::endl;
-    for (auto [key, value] : list) {
-        std::cout << key << " " << value << std::endl;
+    for (auto iter = list.begin(); iter < list.end(); iter++) {
+        std::cout << iter.key() << " " << iter.value() << std::endl;
     }
 }

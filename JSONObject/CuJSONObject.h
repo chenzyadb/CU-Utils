@@ -18,81 +18,6 @@
 
 namespace CU
 {
-	inline char _GetEscapeChar(const char &ch) noexcept
-	{
-		switch (ch) {
-			case '\\':
-				return '\\';
-			case '\"':
-				return '\"';
-			case '\'':
-				return '\'';
-			case 'n':
-				return '\n';
-			case 'r':
-				return '\r';
-			case 't':
-				return '\t';
-			case 'b':
-				return '\b';
-			case 'f':
-				return '\f';
-			case 'a':
-				return '\a';
-			case 'v':
-				return '\v';
-			case '/':
-				return '/';
-			default:
-				break;
-		}
-		return ch;
-	}
-
-	inline std::string _StringToJSONRaw(const std::string &str) 
-	{
-		std::string JSONRaw("\"");
-		for (const auto &ch : str) {
-			switch (ch) {
-				case '\\':
-					JSONRaw += "\\\\";
-					break;
-				case '\"':
-					JSONRaw += "\\\"";
-					break;
-				case '\n':
-					JSONRaw += "\\n";
-					break;
-				case '\t':
-					JSONRaw += "\\t";
-					break;
-				case '\r':
-					JSONRaw += "\\r";
-					break;
-				case '\f':
-					JSONRaw += "\\f";
-					break;
-				case '\a':
-					JSONRaw += "\\a";
-					break;
-				case '\b':
-					JSONRaw += "\\b";
-					break;
-				case '\v':
-					JSONRaw += "\\v";
-					break;
-				case '/':
-					JSONRaw += "\\/";
-					break;
-				default:
-					JSONRaw += ch;
-					break;
-			}
-		}
-		JSONRaw += '\"';
-		return JSONRaw;
-	}
-
 	class JSONExcept : public std::exception
 	{
 		public:
@@ -109,15 +34,94 @@ namespace CU
 
 	class JSONObject;
 	class JSONArray;
+	class JSONItem;
 
-	enum class ItemType : uint8_t {ITEM_NULL, BOOLEAN, INTEGER, LONG, DOUBLE, STRING, ARRAY, OBJECT};
+	namespace JSON
+	{
+		inline char _GetEscapeChar(const char &ch) noexcept
+		{
+			switch (ch) {
+				case '\\':
+					return '\\';
+				case '\"':
+					return '\"';
+				case '\'':
+					return '\'';
+				case 'n':
+					return '\n';
+				case 'r':
+					return '\r';
+				case 't':
+					return '\t';
+				case 'b':
+					return '\b';
+				case 'f':
+					return '\f';
+				case 'a':
+					return '\a';
+				case 'v':
+					return '\v';
+				case '/':
+					return '/';
+				default:
+					break;
+			}
+			return ch;
+		}
 
-	typedef char ItemNull;
-	typedef std::variant<ItemNull, bool, int, int64_t, double, std::string, JSONArray*, JSONObject*> ItemValue;
+		inline std::string _StringToJSONRaw(const std::string &str)
+		{
+			std::string JSONRaw("\"");
+			for (const auto &ch : str) {
+				switch (ch) {
+					case '\\':
+						JSONRaw += "\\\\";
+						break;
+					case '\"':
+						JSONRaw += "\\\"";
+						break;
+					case '\n':
+						JSONRaw += "\\n";
+						break;
+					case '\t':
+						JSONRaw += "\\t";
+						break;
+					case '\r':
+						JSONRaw += "\\r";
+						break;
+					case '\f':
+						JSONRaw += "\\f";
+						break;
+					case '\a':
+						JSONRaw += "\\a";
+						break;
+					case '\b':
+						JSONRaw += "\\b";
+						break;
+					case '\v':
+						JSONRaw += "\\v";
+						break;
+					case '/':
+						JSONRaw += "\\/";
+						break;
+					default:
+						JSONRaw += ch;
+						break;
+				}
+			}
+			JSONRaw += '\"';
+			return JSONRaw;
+		}
+	}
 
 	class JSONItem
 	{
 		public:
+			enum class ItemType : uint8_t {ITEM_NULL, BOOLEAN, INTEGER, LONG, DOUBLE, STRING, ARRAY, OBJECT};
+
+			typedef decltype(nullptr) ItemNull;
+			typedef std::variant<ItemNull, bool, int, int64_t, double, std::string, JSONArray*, JSONObject*> ItemValue;
+
 			struct _Init_Val
 			{
 				ItemType type;
@@ -126,6 +130,7 @@ namespace CU
 			static _Init_Val _To_Init_Val(const std::string &JSONRaw);
 
 			JSONItem();
+			JSONItem(ItemNull _null);
 			JSONItem(const bool &value);
 			JSONItem(const int &value);
 			JSONItem(const int64_t &value);
@@ -150,13 +155,22 @@ namespace CU
 			size_t size() const;
 			size_t hash() const;
 
-			bool toBoolean() const;
-			int toInt() const;
-			int64_t toLong() const;
-			double toDouble() const;
-			std::string toString() const;
-			JSONArray toArray() const;
-			JSONObject toObject() const;
+			bool isNull() const;
+			bool isBoolean() const;
+			bool isInt() const;
+			bool isLong() const;
+			bool isDouble() const;
+			bool isString() const;
+			bool isArray() const;
+			bool isObject() const;
+
+			const bool &toBoolean() const;
+			const int &toInt() const;
+			const int64_t &toLong() const;
+			const double &toDouble() const;
+			const std::string &toString() const;
+			const JSONArray &toArray() const;
+			const JSONObject &toObject() const;
 			std::string toRaw() const;
 			
 		private:
@@ -280,6 +294,7 @@ namespace std
 			return val.hash();
 		}
 	};
+
 	template <>
 	struct hash<CU::JSONArray>
 	{

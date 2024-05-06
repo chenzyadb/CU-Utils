@@ -27,7 +27,7 @@ namespace CU
 			const std::string message_;
 	};
 
-	template <class _Ty1, class _Ty2>
+	template <typename _Ty1, typename _Ty2>
 	class PairList
 	{
 		public:
@@ -37,48 +37,38 @@ namespace CU
 					typedef typename std::vector<_Ty1>::const_iterator KeyIterator;
 					typedef typename std::vector<_Ty2>::const_iterator ValueIterator;
 
-					Iterator(KeyIterator keyIter, ValueIterator valueIter) : keyIter_(keyIter), valueIter_(valueIter) { }
+					Iterator(KeyIterator keyIter, ValueIterator valueIter) : 
+						keyIter_(keyIter), 
+						valueIter_(valueIter) 
+					{ }
 
-					Iterator(const Iterator &other) : keyIter_(), valueIter_()
-					{ 
-						if (std::addressof(other) != this) {
-							keyIter_ = other.getKeyIterator();
-							valueIter_ = other.getValueIterator();
-						}
-					}
+					Iterator(const Iterator &other) : 
+						keyIter_(other.keyIter()),
+						valueIter_(other.valueIter())
+					{ }
 
-					Iterator(Iterator &&other) noexcept : keyIter_(), valueIter_()
-					{
-						if (std::addressof(other) != this) {
-							keyIter_ = other.getKeyIterator();
-							valueIter_ = other.getValueIterator();
-						}
-					}
+					Iterator(Iterator &&other) noexcept : 
+						keyIter_(other.keyIter()), 
+						valueIter_(other.valueIter())
+					{ }
 
 					Iterator &operator=(const Iterator &other)
 					{
 						if (std::addressof(other) != this) {
-							keyIter_ = other.getKeyIterator();
-							valueIter_ = other.getValueIterator();
+							keyIter_ = other.keyIter();
+							valueIter_ = other.valueIter();
 						}
 						return *this;
 					}
 
 					Iterator operator+(size_t pos) const
 					{
-						auto keyIter = keyIter_ + pos;
-						auto valueIter = valueIter_ + pos;
-						return Iterator(keyIter, valueIter);
+						return Iterator((keyIter_ + pos), (valueIter_ + pos));
 					}
 
-					size_t operator-(const Iterator &other) const
+					size_t operator-(const Iterator &other) const noexcept
 					{
-						auto keyPos = keyIter_ - other.getKeyIterator();
-						auto valuePos = valueIter_ - other.getValueIterator();
-						if (keyPos != valuePos) {
-							throw PairListExcept("Invaild PairList Iterator");
-						}
-						return keyPos;
+						return (keyIter_ - other.keyIter());
 					}
 
 					Iterator &operator+=(size_t pos)
@@ -104,6 +94,7 @@ namespace CU
 
 					Iterator operator++(int _val)
 					{
+						(void)_val;
 						Iterator origIter(*this);
 						keyIter_++;
 						valueIter_++;
@@ -119,30 +110,31 @@ namespace CU
 
 					Iterator operator--(int _val)
 					{
+						(void)_val;
 						Iterator origIter(*this);
 						keyIter_--;
 						valueIter_--;
 						return origIter;
 					}
 
-					bool operator==(const Iterator &other) const
+					bool operator==(const Iterator &other) const noexcept
 					{
-						return (keyIter_ == other.getKeyIterator() && valueIter_ == other.getValueIterator());
+						return (keyIter_ == other.keyIter() && valueIter_ == other.valueIter());
 					}
 
-					bool operator!=(const Iterator &other) const
+					bool operator!=(const Iterator &other) const noexcept
 					{
-						return (keyIter_ != other.getKeyIterator() || valueIter_ != other.getValueIterator());
+						return (keyIter_ != other.keyIter() || valueIter_ != other.valueIter());
 					}
 
-					bool operator>(const Iterator &other) const
+					bool operator>(const Iterator &other) const noexcept
 					{
-						return (keyIter_ > other.getKeyIterator() && valueIter_ > other.getValueIterator());
+						return (keyIter_ > other.keyIter() && valueIter_ > other.valueIter());
 					}
 
-					bool operator<(const Iterator &other) const
+					bool operator<(const Iterator &other) const noexcept
 					{
-						return (keyIter_ < other.getKeyIterator() && valueIter_ < other.getValueIterator());
+						return (keyIter_ < other.keyIter() && valueIter_ < other.valueIter());
 					}
 
 					std::pair<_Ty1, _Ty2> operator*() const
@@ -150,14 +142,26 @@ namespace CU
 						return std::make_pair(*keyIter_, *valueIter_);
 					}
 
-					KeyIterator getKeyIterator() const
+					std::pair<_Ty1, _Ty2>* operator->() = delete;
+
+					KeyIterator keyIter() const
 					{
 						return keyIter_;
 					}
 
-					ValueIterator getValueIterator() const
+					ValueIterator valueIter() const
 					{
 						return valueIter_;
+					}
+
+					const _Ty1 &key() const
+					{
+						return *keyIter_;
+					}
+
+					const _Ty2 &value() const
+					{
+						return *valueIter_;
 					}
 
 				private:
@@ -172,39 +176,33 @@ namespace CU
 				values_(values) 
 			{ }
 
-			PairList(const PairList &other) : keys_(), values_()
-			{
-				if (std::addressof(other) != this) {
-					keys_ = other.getKeys();
-					values_ = other.getValues();
-				}
-			}
+			PairList(const PairList &other) : 
+				keys_(other.keys()), 
+				values_(other.values()) 
+			{ }
 
-			PairList(PairList &&other) noexcept : keys_(), values_()
-			{
-				if (std::addressof(other) != this) {
-					keys_ = other.getKeys();
-					values_ = other.getValues();
-				}
-			}
+			PairList(PairList &&other) noexcept : 
+				keys_(other.keys()), 
+				values_(other.values()) 
+			{ }
 
 			PairList &operator=(const PairList &other)
 			{
 				if (std::addressof(other) != this) {
-					keys_ = other.getKeys();
-					values_ = other.getValues();
+					keys_ = other.keys();
+					values_ = other.values();
 				}
 				return *this;
 			}
 
 			bool operator==(const PairList &other) const
 			{
-				return (keys_ == other.getKeys() && values_ == other.getValues());
+				return (keys_ == other.keys() && values_ == other.values());
 			}
 
 			bool operator!=(const PairList &other) const
 			{
-				return (keys_ != other.getKeys() || values_ != other.getValues());
+				return (keys_ != other.keys() || values_ != other.values());
 			}
 
 			_Ty2 &operator[](const _Ty1 &key)
@@ -301,12 +299,12 @@ namespace CU
 				values_.erase(valueIter);
 			}
 
-			std::vector<_Ty1> getKeys() const
+			std::vector<_Ty1> keys() const
 			{
 				return keys_;
 			}
 
-			std::vector<_Ty2> getValues() const
+			std::vector<_Ty2> values() const
 			{
 				return values_;
 			}
@@ -317,7 +315,7 @@ namespace CU
 				values_.clear();
 			}
 
-			size_t size() const
+			size_t size() const noexcept
 			{
 				return keys_.size();
 			}

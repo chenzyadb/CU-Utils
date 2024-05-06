@@ -7,6 +7,8 @@ int main()
     // item test.
     {
         JSONItem item{};
+        std::cout << (item.isNull() ? "true" : "false") << std::endl;
+        std::cout << (item == nullptr ? "true" : "false") << std::endl;
         std::cout << item.toRaw() << std::endl;
         item = true;
         std::cout << item.toBoolean() << std::endl;
@@ -85,6 +87,12 @@ int main()
 
         for (const auto &pair : object3.toPairs()) {
             std::cout << "key: " << pair.key << " value: " << pair.value.toRaw() << std::endl;
+        }
+
+        if (object.at("null") == nullptr) {
+            std::cout << "is null" << std::endl;
+        } else {
+            std::cout << "not null" << std::endl;
         }
     }
 
