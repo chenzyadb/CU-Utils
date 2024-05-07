@@ -164,13 +164,13 @@ namespace CU
 			bool isArray() const;
 			bool isObject() const;
 
-			const bool &toBoolean() const;
-			const int &toInt() const;
-			const int64_t &toLong() const;
-			const double &toDouble() const;
-			const std::string &toString() const;
-			const JSONArray &toArray() const;
-			const JSONObject &toObject() const;
+			bool toBoolean() const;
+			int toInt() const;
+			int64_t toLong() const;
+			double toDouble() const;
+			std::string toString() const;
+			JSONArray toArray() const;
+			JSONObject toObject() const;
 			std::string toRaw() const;
 			
 		private:

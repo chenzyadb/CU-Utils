@@ -330,7 +330,7 @@ bool CU::JSONItem::isObject() const
 	return (type_ == ItemType::OBJECT);
 }
 
-const bool &CU::JSONItem::toBoolean() const
+bool CU::JSONItem::toBoolean() const
 {
 	if (type_ != ItemType::BOOLEAN) {
 		throw CU::JSONExcept("Item is not of boolean type");
@@ -338,7 +338,7 @@ const bool &CU::JSONItem::toBoolean() const
 	return std::get<bool>(value_);
 }
 
-const int &CU::JSONItem::toInt() const
+int CU::JSONItem::toInt() const
 {
 	if (type_ != ItemType::INTEGER) {
 		throw CU::JSONExcept("Item is not of int type");
@@ -346,7 +346,7 @@ const int &CU::JSONItem::toInt() const
 	return std::get<int>(value_);
 }
 
-const int64_t &CU::JSONItem::toLong() const
+int64_t CU::JSONItem::toLong() const
 {
 	if (type_ != ItemType::LONG) {
 		throw CU::JSONExcept("Item is not of long type");
@@ -354,7 +354,7 @@ const int64_t &CU::JSONItem::toLong() const
 	return std::get<int64_t>(value_);
 }
 
-const double &CU::JSONItem::toDouble() const
+double CU::JSONItem::toDouble() const
 {
 	if (type_ != ItemType::DOUBLE) {
 		throw CU::JSONExcept("Item is not of double type");
@@ -362,7 +362,7 @@ const double &CU::JSONItem::toDouble() const
 	return std::get<double>(value_);
 }
 
-const std::string &CU::JSONItem::toString() const
+std::string CU::JSONItem::toString() const
 {
 	if (type_ != ItemType::STRING) {
 		throw CU::JSONExcept("Item is not of string type");
@@ -370,7 +370,7 @@ const std::string &CU::JSONItem::toString() const
 	return std::get<std::string>(value_);
 }
 
-const CU::JSONArray &CU::JSONItem::toArray() const
+CU::JSONArray CU::JSONItem::toArray() const
 {
 	if (type_ != ItemType::ARRAY) {
 		throw CU::JSONExcept("Item is not of array type");
@@ -378,7 +378,7 @@ const CU::JSONArray &CU::JSONItem::toArray() const
 	return *(std::get<JSONArray*>(value_));
 }
 
-const CU::JSONObject &CU::JSONItem::toObject() const
+CU::JSONObject CU::JSONItem::toObject() const
 {
 	if (type_ != ItemType::OBJECT) {
 		throw CU::JSONExcept("Item is not of object type");
