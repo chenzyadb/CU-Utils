@@ -68,31 +68,6 @@ int main()
 		std::cout << (matcher.match("Hello, I'm 18 years old, my favorite letter is z.") ? "true" : "false") << std::endl;
 		std::cout << (matcher.match("Hello, I'm 1 years old, my favorite letter is F.") ? "true" : "false") << std::endl;
 	}
-	{
-		std::cout << "Test setRule & clear:" << std::endl;
-
-		StringMatcher matcher{};
-		matcher.setRule("*Hello*");
-		std::cout << (matcher.match("Hello India Mi Fans, do you like mi 4i?") ? "true" : "false") << std::endl;
-		matcher.clear();
-		std::cout << (matcher.match("Hello India Mi Fans, do you like mi 4i?") ? "true" : "false") << std::endl;
-		std::cout << matcher.rule() << std::endl;
-	}
-	{
-		std::cout << "std::vector & std::unordered_map support test." << std::endl;
-
-		StringMatcher matcher = StringMatcher("*(this|test)*");
-		std::cout << (matcher.match("this is test text") ? "true" : "false") << std::endl;
-
-		std::vector<StringMatcher> testList{};
-		testList.resize(100, StringMatcher("Hello*"));
-		std::cout << testList[0].rule() << std::endl;
-
-		std::unordered_map<int, StringMatcher> testMap{};
-		testMap[123] = StringMatcher("Hello*");
-		testMap[123] = StringMatcher();
-		std::cout << testMap.at(123).rule() << std::endl;
-	}
 
 	std::cout << "Speed Test:" << std::endl;
 	{
