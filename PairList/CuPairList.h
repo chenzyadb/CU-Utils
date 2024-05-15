@@ -66,6 +66,11 @@ namespace CU
 						return Iterator((keyIter_ + pos), (valueIter_ + pos));
 					}
 
+					Iterator operator-(size_t pos) const
+					{
+						return Iterator((keyIter_ - pos), (valueIter_ - pos));
+					}
+
 					size_t operator-(const Iterator &other) const noexcept
 					{
 						return (keyIter_ - other.keyIter());
@@ -135,6 +140,16 @@ namespace CU
 					bool operator<(const Iterator &other) const noexcept
 					{
 						return (keyIter_ < other.keyIter() && valueIter_ < other.valueIter());
+					}
+
+					bool operator>=(const Iterator &other) const noexcept
+					{
+						return (keyIter_ >= other.keyIter() && valueIter_ >= other.valueIter());
+					}
+
+					bool operator<=(const Iterator &other) const noexcept
+					{
+						return (keyIter_ <= other.keyIter() && valueIter_ <= other.valueIter());
 					}
 
 					std::pair<_Ty1, _Ty2> operator*() const
@@ -307,6 +322,12 @@ namespace CU
 			std::vector<_Ty2> values() const
 			{
 				return values_;
+			}
+
+			void reverse()
+			{
+				std::reverse(keys_.begin(), keys_.end());
+				std::reverse(values_.begin(), values_.end());
 			}
 
 			void clear()

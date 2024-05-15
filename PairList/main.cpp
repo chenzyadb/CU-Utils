@@ -27,4 +27,9 @@ int main()
     for (auto iter = list.begin(); iter < list.end(); iter++) {
         std::cout << iter.key() << " " << iter.value() << std::endl;
     }
+
+    list.reverse();
+    for (auto iter = list.begin(); iter < list.end(); iter++) {
+        std::cout << iter.key() << " " << iter.value() << std::endl;
+    }
 }
