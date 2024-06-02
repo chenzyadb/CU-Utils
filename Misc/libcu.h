@@ -206,20 +206,7 @@ inline std::string GetRePostString(const std::string &str, const std::string &ke
 
 inline bool StrContains(const std::string &str, const std::string &subStr) 
 {
-    if (str.empty() || subStr.empty()) {
-        return false;
-    }
     return (str.find(subStr) != std::string::npos);
-}
-
-inline bool StrEmpty(const std::string &str) noexcept
-{
-    for (const auto &ch : str) {
-        if (isalnum(ch) != 0) {
-            return false;
-        }
-    }
-    return true;
 }
 
 inline int StringToInteger(const std::string &str) noexcept
@@ -352,6 +339,17 @@ inline std::string TrimStr(const std::string &str)
 }
 
 template <typename _Ty>
+inline bool GenericCompare(const _Ty &val0, const _Ty &val1) noexcept
+{
+    const auto val0_addr = std::addressof(val0);
+    const auto val1_addr = std::addressof(val1);
+    if (val0_addr == val1_addr) {
+        return true;
+    }
+    return (memcmp(val0_addr, val1_addr, sizeof(_Ty)) == 0);
+}
+
+template <typename _Ty>
 inline int RoundNum(_Ty num) noexcept
 {
     if (num > INT_MAX) {
@@ -379,24 +377,24 @@ inline _Ty AbsVal(_Ty num) noexcept
 }
 
 template <typename _Ty>
-inline _Ty SquareVal(_Ty val) noexcept
+inline _Ty SquareVal(_Ty value) noexcept
 {
-    return (val * val);
+    return (value * value);
 }
 
 template <typename _Ty>
-inline _Ty SqrtVal(_Ty val) noexcept
+inline _Ty SqrtVal(_Ty value) noexcept
 {
-    if (val == 0) {
+    if (value == 0) {
         return 0;
     }
-    auto high = static_cast<double>(val), low = 0.0;
-    if (val < 1.0) {
+    auto high = static_cast<double>(value), low = 0.0;
+    if (value < 1.0) {
         high = 1.0;
     }
     while ((high - low) > 0.01) {
         auto mid = (low + high) / 2;
-        if ((mid * mid) > val) {
+        if ((mid * mid) > value) {
             high = mid;
         } else {
             low = mid;
@@ -445,13 +443,43 @@ inline const _Ty &VecApproxItem(const std::vector<_Ty> &vec, _Ty targetVal) noex
 }
 
 template <typename _Ty>
-inline std::vector<_Ty> UniqueVec(const std::vector<_Ty> &vec) 
+inline const _Ty &VecApproxMinItem(const std::vector<_Ty> &vec, _Ty targetVal) noexcept
 {
-    std::vector<_Ty> uniquedVec(vec);
-    std::sort(uniquedVec.begin(), uniquedVec.end());
-    auto iter = std::unique(uniquedVec.begin(), uniquedVec.end());
-    uniquedVec.erase(iter, uniquedVec.end());
-    return uniquedVec;
+    auto approxIter = vec.begin();
+    _Ty minDiff = std::numeric_limits<_Ty>::max();
+    for (auto iter = vec.begin(); iter < vec.end(); iter++) {
+        _Ty diff = *iter - targetVal;
+        if (diff < minDiff && diff >= 0) {
+            approxIter = iter;
+            minDiff = diff;
+        }
+    }
+    return *approxIter;
+}
+
+template <typename _Ty>
+inline const _Ty &VecApproxMaxItem(const std::vector<_Ty> &vec, _Ty targetVal) noexcept
+{
+    auto approxIter = vec.begin();
+    _Ty minDiff = std::numeric_limits<_Ty>::max();
+    for (auto iter = vec.begin(); iter < vec.end(); iter++) {
+        _Ty diff = targetVal - *iter;
+        if (diff < minDiff && diff >= 0) {
+            approxIter = iter;
+            minDiff = diff;
+        }
+    }
+    return *approxIter;
+}
+
+template <typename _Ty>
+inline _Ty AverageVec(const std::vector<_Ty> &vec) noexcept
+{
+    _Ty sum{};
+    for (auto iter = vec.begin(); iter < vec.end(); iter++) {
+        sum += *iter;
+    }
+    return (sum / vec.size());
 }
 
 template <typename _Ty>
@@ -462,6 +490,16 @@ inline _Ty SumVec(const std::vector<_Ty> &vec) noexcept
         sum += *iter;
     }
     return sum;
+}
+
+template <typename _Ty>
+inline std::vector<_Ty> UniqueVec(const std::vector<_Ty> &vec) 
+{
+    std::vector<_Ty> uniquedVec(vec);
+    std::sort(uniquedVec.begin(), uniquedVec.end());
+    auto iter = std::unique(uniquedVec.begin(), uniquedVec.end());
+    uniquedVec.erase(iter, uniquedVec.end());
+    return uniquedVec;
 }
 
 template <typename _Ty>
@@ -583,7 +621,7 @@ inline std::string ReadFile(const std::string &filePath)
         lseek(fd, 0, SEEK_SET);
         auto buffer = new char[file_size];
         memset(buffer, 0, file_size);
-        auto len = read(fd, buffer, file_size);
+        auto len = read(fd, buffer, (file_size - 1));
         close(fd);
         if (len >= 0) {
             *(buffer + len) = '\0';
@@ -618,33 +656,33 @@ inline int GetThreadPid(int tid) noexcept
     return -1;
 }
 
-enum class TaskType : uint8_t {TASK_OTHER, TASK_FOREGROUND, TASK_VISIBLE, TASK_SERVICE, TASK_SYSTEM, TASK_BACKGROUND};
-
-inline TaskType GetTaskType(int pid) noexcept
+inline std::string GetTaskCgroupType(int pid, const std::string &cgroup) noexcept
 {
-    char oomAdjPath[128] = { 0 };
-    snprintf(oomAdjPath, sizeof(oomAdjPath), "/proc/%d/oom_adj", pid);
-    int fd = open(oomAdjPath, O_RDONLY | O_NONBLOCK);
+    char cgroupPath[128] = { 0 };
+    snprintf(cgroupPath, sizeof(cgroupPath), "/proc/%d/cgroup", pid);
+    int fd = open(cgroupPath, O_RDONLY | O_NONBLOCK);
     if (fd >= 0) {
         char buffer[4096] = { 0 };
-        read(fd, buffer, sizeof(buffer));
+        auto len = read(fd, buffer, sizeof(buffer));
+        if (len >= 0) {
+            buffer[len] = '\0';
+        } else {
+            buffer[0] = '\0';
+        }
         close(fd);
-        int oom_adj = 16;
-        if (sscanf(buffer, "%d", &oom_adj) == 1) {
-            if (oom_adj == 0) {
-                return TaskType::TASK_FOREGROUND;
-            } else if (oom_adj == 1) {
-                return TaskType::TASK_VISIBLE;
-            } else if (oom_adj >= 2 && oom_adj <= 8) {
-                return TaskType::TASK_SERVICE;
-            } else if (oom_adj <= -1 && oom_adj >= -17) {
-                return TaskType::TASK_SYSTEM;
-            } else if (oom_adj >= 9 && oom_adj <= 16) {
-                return TaskType::TASK_BACKGROUND;
+        auto line_ptr = strstr(buffer, cgroup.c_str());
+        if (line_ptr != nullptr) {
+            auto begin_ptr = strchr(line_ptr, ':') + 1;
+            auto end_ptr = strchr(begin_ptr, '\n');
+            if (end_ptr == nullptr) {
+                end_ptr = &buffer[0] + strlen(buffer);
             }
+            char cgroupType[4096] = { 0 };
+            strncpy(cgroupType, begin_ptr, (end_ptr - begin_ptr));
+            return cgroupType;
         }
     }
-    return TaskType::TASK_OTHER;
+    return {};
 }
 
 inline std::string GetTaskName(int pid) 
@@ -800,6 +838,62 @@ inline int RunCommand(const std::string &command) noexcept
     return system(command.c_str());
 }
 
+inline std::string FindPath(const std::string &path, const std::string &symbol)
+{
+    std::string matchedPath{};
+    struct dirent** entryList = nullptr;
+    int len = scandir(path.c_str(), &entryList, nullptr, alphasort);
+    if (entryList != nullptr && len > 0) {
+        for (int pos = 0; pos < len; pos++) {
+            auto entry = *(entryList + pos);
+            std::string dirName(entry->d_name);
+            free(entry);
+            if (dirName.find(symbol) != std::string::npos) {
+                matchedPath = path + '/' + dirName;
+                break;
+            }
+        }
+        free(entryList);
+    }
+    return matchedPath;
+}
+
+inline std::vector<std::string> ListDir(const std::string &path) 
+{
+    std::vector<std::string> dirPaths{};
+    struct dirent** entryList = nullptr;
+    int len = scandir(path.c_str(), &entryList, nullptr, alphasort);
+    if (entryList != nullptr && len > 0) {
+        for (int pos = 0; pos < len; pos++) {
+            auto entry = *(entryList + pos);
+            if (entry->d_type == DT_DIR) {
+                dirPaths.emplace_back(path + '/' + entry->d_name);
+            }
+            free(entry);
+        }
+        free(entryList);
+    }
+    return dirPaths;
+}
+
+inline std::vector<std::string> ListFile(const std::string &path)
+{
+    std::vector<std::string> filePaths{};
+    struct dirent** entryList = nullptr;
+    int len = scandir(path.c_str(), &entryList, nullptr, alphasort);
+    if (entryList != nullptr && len > 0) {
+        for (int pos = 0; pos < len; pos++) {
+            auto entry = *(entryList + pos);
+            if (entry->d_type == DT_REG) {
+                filePaths.emplace_back(path + '/' + entry->d_name);
+            }
+            free(entry);
+        }
+        free(entryList);
+    }
+    return filePaths;
+}
+
 #if defined(__ANDROID_API__)
 // Android NDK Interface Functions.
 
@@ -902,26 +996,6 @@ inline std::string GetTaskTombstonePath(int pid)
         free(entryList);
     }
     return tombstonePath;
-}
-
-inline std::string FindPath(const std::string &path, const std::string &symbol)
-{
-    std::string matchedPath{};
-    struct dirent** entryList = nullptr;
-    int len = scandir(path.c_str(), &entryList, nullptr, alphasort);
-    if (entryList != nullptr && len > 0) {
-        for (int pos = 0; pos < len; pos++) {
-            auto entry = *(entryList + pos);
-            std::string dirName(entry->d_name);
-            free(entry);
-            if (dirName.find(symbol) != std::string::npos) {
-                matchedPath = path + '/' + dirName;
-                break;
-            }
-        }
-        free(entryList);
-    }
-    return matchedPath;
 }
 
 
