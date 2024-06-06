@@ -612,7 +612,7 @@ inline std::string GetTaskComm(int pid)
 {
     std::string taskComm{};
     char commPath[128] = { 0 };
-    snprintf(commPath, sizeof(commPath), "/proc/%d/cmdline", pid);
+    snprintf(commPath, sizeof(commPath), "/proc/%d/comm", pid);
     int fd = open(commPath, (O_RDONLY | O_NONBLOCK));
     if (fd >= 0) {
         char buffer[4096] = { 0 };
