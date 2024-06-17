@@ -721,35 +721,36 @@ CU_INLINE void SetThreadName(const std::string &name) noexcept
     prctl(PR_SET_NAME, name.c_str());
 }
 
-CU_INLINE int FindTaskPid(const std::string &taskName) noexcept
+CU_INLINE int FindTaskPid(const std::string &taskName)
 {
-    int taskPid = -1;
+    std::vector<int> tasks{};
     struct dirent** entries = nullptr;
     int size = scandir("/proc", &entries, nullptr, alphasort);
     if (CU_LIKELY(entries != nullptr)) {
         for (int offset = 0; offset < size; offset++) {
             auto entry = *(entries + offset);
-            auto dirType = entry->d_type;
-            int pid = std::atoi(entry->d_name);
-            std::free(entry);
-            if (dirType == DT_DIR && pid > 0 && pid <= INT16_MAX) {
-                char cmdlinePath[PATH_MAX] = { 0 };
-                std::snprintf(cmdlinePath, sizeof(cmdlinePath), "/proc/%d/cmdline", pid);
-                int fd = open(cmdlinePath, (O_RDONLY | O_NONBLOCK));
-                if (CU_LIKELY(fd >= 0)) {
-                    char cmdline[PAGE_SIZE] = { 0 };
-                    read(fd, cmdline, (sizeof(cmdline) - 1));
-                    close(fd);
-                    if (std::strstr(cmdline, taskName.c_str())) {
-                        taskPid = pid;
-                        break;
-                    }
-                }
+            auto pid = std::atoi(entry->d_name);
+            if (entry->d_type == DT_DIR && pid > 0 && pid <= INT16_MAX) {
+                tasks.emplace_back(pid);
             }
+            std::free(entry);
         }
         std::free(entries);
     }
-    return taskPid;
+    for (const int &pid : tasks) {
+        char cmdlinePath[PATH_MAX] = { 0 };
+        std::snprintf(cmdlinePath, sizeof(cmdlinePath), "/proc/%d/cmdline", pid);
+        int fd = open(cmdlinePath, (O_RDONLY | O_NONBLOCK));
+        if (CU_LIKELY(fd >= 0)) {
+            char cmdline[PAGE_SIZE] = { 0 };
+            read(fd, cmdline, (sizeof(cmdline) - 1));
+            close(fd);
+            if (std::strstr(cmdline, taskName.c_str())) {
+                return pid;
+            }
+        }
+    }
+    return -1;
 }
 
 CU_INLINE std::vector<int> GetTaskThreads(int pid) 
@@ -762,11 +763,9 @@ CU_INLINE std::vector<int> GetTaskThreads(int pid)
     if (CU_LIKELY(entries != nullptr)) {
         for (int offset = 0; offset < size; offset++) {
             auto entry = *(entries + offset);
-            if (entry->d_type == DT_DIR) {
-                int tid = std::atoi(entry->d_name);
-                if (tid > 0 && tid <= INT16_MAX) {
-                    threads.emplace_back(tid);
-                }
+            int tid = std::atoi(entry->d_name);
+            if (entry->d_type == DT_DIR && tid > 0 && tid <= INT16_MAX) {
+                threads.emplace_back(tid);
             }
             std::free(entry);
         }
@@ -804,22 +803,23 @@ CU_INLINE std::string ExecCommand(const std::string &command)
 
 CU_INLINE std::string FindPath(const std::string &path, const std::string &symbol)
 {
-    std::string matchedPath{};
+    std::vector<std::string> paths{};
     struct dirent** entries = nullptr;
     int size = scandir(path.c_str(), &entries, nullptr, alphasort);
     if (CU_LIKELY(entries != nullptr)) {
         for (int offset = 0; offset < size; offset++) {
             auto entry = *(entries + offset);
-            std::string dirName(entry->d_name);
+            paths.emplace_back(entry->d_name);
             std::free(entry);
-            if (dirName.find(symbol) != std::string::npos) {
-                matchedPath = path + '/' + dirName;
-                break;
-            }
         }
         std::free(entries);
     }
-    return matchedPath;
+    for (const auto &path : paths) {
+        if (path.find(symbol) != std::string::npos) {
+            return path;
+        }
+    }
+    return {};
 }
 
 CU_INLINE std::vector<std::string> ListDir(const std::string &path) 
@@ -924,37 +924,6 @@ CU_INLINE ScreenState GetScreenStateViaWakelock() noexcept
 CU_INLINE int GetAndroidAPILevel() noexcept
 {
     return android_get_device_api_level();
-}
-
-CU_INLINE std::string GetTaskTombstonePath(int pid)
-{
-    std::string tombstonePath{};
-    struct dirent** entries = nullptr;
-    int size = scandir("/data/tombstones", &entries, nullptr, alphasort);
-    if (CU_LIKELY(entries != nullptr)) {
-        char tombstoneSymbol[16] = { 0 };
-        std::snprintf(tombstoneSymbol, sizeof(tombstoneSymbol), "pid: %d", pid);
-        for (int offset = 0; offset < size; offset++) {
-            auto entry = *(entries + offset);
-            auto dirType = entry->d_type;
-            auto dirPath = std::string("/data/tombstones/") + entry->d_name;
-            std::free(entry);
-            if (dirType == DT_REG) {
-                int fd = open(dirPath.c_str(), (O_RDONLY | O_NONBLOCK));
-                if (CU_LIKELY(fd >= 0)) {
-                    char buffer[PAGE_SIZE] = { 0 };
-                    read(fd, buffer, (sizeof(buffer) - 1));
-                    close(fd);
-                    if (std::strstr(buffer, tombstoneSymbol)) {
-                        tombstonePath = dirPath;
-                        break;
-                    }
-                }
-            }
-        }
-        std::free(entries);
-    }
-    return tombstonePath;
 }
 
 
