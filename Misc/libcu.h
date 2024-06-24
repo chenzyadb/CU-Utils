@@ -1,22 +1,16 @@
+// cuprum cross-platform library by chenzyadb@github.com
+// Based on C++17 STL (LLVM)
+
 #ifndef __LIB_CU__
 #define __LIB_CU__
 
-#include <iostream>
-#include <stdexcept>
-#include <utility>
 #include <string>
 #include <vector>
-#include <array>
-#include <thread>
 #include <algorithm>
-#include <iterator>
-#include <unordered_map>
-#include <map>
-#include <memory>
-#include <mutex>
 #include <functional>
 #include <limits>
 #include <chrono>
+#include <thread>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -25,8 +19,8 @@
 #include <cstring>
 #include <cstdint>
 #include <cstddef>
-#include <cctype>
 #include <cinttypes>
+#include <cwchar>
 
 #define CU_UNUSED(val) (void)(val)
 #define CU_WCHAR(val) L##val
@@ -37,18 +31,22 @@
 #define CU_UNLIKELY(val) (__builtin_expect(!!(val), 0))
 #define CU_COMPARE(val1, val2, size) (__builtin_memcmp(val1, val2, size) == 0)
 #define CU_MEMSET(dst, ch, size) __builtin_memset(dst, ch, size)
+#define CU_MEMCPY(dst, src, size) __builtin_memcpy(dst, src, size)
 #elif defined(_MSC_VER)
+#pragma warning(disable : 4996)
 #define CU_INLINE __forceinline
 #define CU_LIKELY(val) (!!(val))
 #define CU_UNLIKELY(val) (!!(val))
 #define CU_COMPARE(val1, val2, size) (memcmp(val1, val2, size) == 0)
 #define CU_MEMSET(dst, ch, size) memset(dst, ch, size)
+#define CU_MEMCPY(dst, src, size) memcpy(dst, src, size)
 #else
 #define CU_INLINE inline
 #define CU_LIKELY(val) (!!(val))
 #define CU_UNLIKELY(val) (!!(val))
 #define CU_COMPARE(val1, val2, size) (memcmp(val1, val2, size) == 0)
 #define CU_MEMSET(dst, ch, size) memset(dst, ch, size)
+#define CU_MEMCPY(dst, src, size) memcpy(dst, src, size)
 #endif
 
 #ifndef PAGE_SIZE
@@ -60,873 +58,708 @@
 #endif
 
 
-CU_INLINE std::vector<std::string> StrSplit(const std::string &str, const std::string &delimiter)
+namespace CU
 {
-    std::vector<std::string> strList{};
-    size_t start_pos = 0;
-    size_t pos = str.find(delimiter);
-    while (pos != std::string::npos) {
-        if (start_pos < pos) {
-            strList.emplace_back(str.substr(start_pos, pos - start_pos));
+    CU_INLINE std::string WcsToStr(const std::wstring &wc_str)
+    {
+        std::string str{};
+        auto str_len = (wc_str.size() + 1) * sizeof(wchar_t);
+        auto str_buf = new char[str_len];
+        CU_MEMSET(str_buf, 0, str_len);
+        mbstate_t mbstate{};
+        auto wcs_data = wc_str.data();
+        if (std::wcsrtombs(str_buf, &wcs_data, str_len, &mbstate) != static_cast<size_t>(-1)) {
+            str = str_buf;
         }
-        start_pos = pos + delimiter.size();
-        pos = str.find(delimiter, start_pos);
+        delete[] str_buf;
+        return str;
     }
-    if (start_pos < str.size()) {
-        strList.emplace_back(str.substr(start_pos));
-    }
-    return strList;
-}
 
-CU_INLINE std::vector<std::string> StrSplit(const std::string &str, char delimiter) 
-{
-    std::vector<std::string> lines{};
-    size_t start_pos = 0;
-    for (size_t pos = 0; pos < str.size(); pos++) {
-        if (str[pos] == delimiter) {
+    CU_INLINE std::wstring StrToWcs(const std::string &str)
+    {
+        std::wstring wc_str{};
+        auto wcs_len = str.size() + 1;
+        auto wcs_buf = new wchar_t[wcs_len];
+        CU_MEMSET(wcs_buf, 0, wcs_len * sizeof(wchar_t));
+        mbstate_t mbstate{};
+        auto str_data = str.data();
+        if (std::mbsrtowcs(wcs_buf, &str_data, wcs_len, &mbstate) != static_cast<size_t>(-1)) {
+            wc_str = wcs_buf;
+        }
+        delete[] wcs_buf;
+        return wc_str;
+    }
+
+    template <typename _Char_Ty>
+    CU_INLINE std::vector<std::basic_string<_Char_Ty>>
+    StrSplit(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter)
+    {
+        std::vector<std::basic_string<_Char_Ty>> splittedStrings{};
+        size_t start_pos = 0;
+        size_t pos = str.find(delimiter);
+        while (pos != std::basic_string<_Char_Ty>::npos) {
             if (start_pos < pos) {
-                lines.emplace_back(str.substr(start_pos, pos - start_pos));
+                splittedStrings.emplace_back(str.substr(start_pos, (pos - start_pos)));
             }
-            start_pos = pos + 1;
+            start_pos = pos + delimiter.size();
+            pos = str.find(delimiter, start_pos);
         }
+        if (start_pos < str.size()) {
+            splittedStrings.emplace_back(str.substr(start_pos));
+        }
+        return splittedStrings;
     }
-    if (start_pos < str.size()) {
-        lines.emplace_back(str.substr(start_pos));
-    }
-    return lines;
-}
 
-CU_INLINE std::string StrSplitAt(const std::string &str, const std::string &delimiter, int targetCount) 
-{
-    int count = 0;
-    size_t start_pos = 0;
-    size_t pos = str.find(delimiter);
-    while (pos != std::string::npos) {
-        if (start_pos < pos) {
-            if (count == targetCount) {
-                return str.substr(start_pos, pos - start_pos);
+    template <typename _Char_Ty>
+    CU_INLINE std::vector<std::basic_string<_Char_Ty>>
+    StrSplit(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter) 
+    {
+        std::vector<std::basic_string<_Char_Ty>> splittedStrings{};
+        size_t start_pos = 0;
+        for (size_t pos = 0; pos < str.size(); pos++) {
+            if (str[pos] == delimiter || pos == (str.size() - 1)) {
+                if (start_pos < pos) {
+                    splittedStrings.emplace_back(str.substr(start_pos, (pos - start_pos)));
+                }
+                start_pos = pos + 1;
             }
-            count++;
         }
-        start_pos = pos + delimiter.size();
-        pos = str.find(delimiter, start_pos);
+        return splittedStrings;
     }
-    if (start_pos < str.size() && count == targetCount) {
-        return str.substr(start_pos);
-    }
-    return {};
-}
 
-CU_INLINE std::string StrSplitAt(const std::string &str, char delimiter, int targetCount) 
-{
-    int count = 0;
-    size_t start_pos = 0;
-    for (size_t pos = 0; pos < str.size(); pos++) {
-        if (str[pos] == delimiter) {
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty>
+    StrSplitAt(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter, int targetCount) 
+    {
+        int count = 0;
+        size_t start_pos = 0;
+        size_t pos = str.find(delimiter);
+        while (pos != std::basic_string<_Char_Ty>::npos) {
             if (start_pos < pos) {
                 if (count == targetCount) {
-                    return str.substr(start_pos, pos - start_pos);
+                    return str.substr(start_pos, (pos - start_pos));
                 }
                 count++;
             }
-            start_pos = pos + 1;
+            start_pos = pos + delimiter.size();
+            pos = str.find(delimiter, start_pos);
         }
+        if (start_pos < str.size() && count == targetCount) {
+            return str.substr(start_pos);
+        }
+        return {};
     }
-    if (start_pos < str.size() && count == targetCount) {
-        return str.substr(start_pos);
-    }
-    return {};
-}
 
-CU_INLINE std::string StrMerge(const char* format, ...)
-{
-    std::string content{};
-    int len = 0;
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty> StrSplitAt(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter, int targetCount) 
     {
-        va_list args{};
-        va_start(args, format);
-        len = std::vsnprintf(nullptr, 0, format, args) + 1;
-        va_end(args);
-    }
-    if (CU_LIKELY(len > 1)) {
-        auto buffer = new char[len];
-        CU_MEMSET(buffer, 0, len);
-        va_list args{};
-        va_start(args, format);
-        std::vsnprintf(buffer, len, format, args);
-        va_end(args);
-        content = buffer;
-        delete[] buffer;
-    }
-    return content;
-}
-
-CU_INLINE std::string GetPrevString(const std::string &str, const std::string &key)
-{
-    return str.substr(0, str.find(key));
-}
-
-CU_INLINE std::string GetRePrevString(const std::string &str, const std::string &key)
-{
-    return str.substr(0, str.rfind(key));
-}
-
-CU_INLINE std::string GetPostString(const std::string &str, const std::string &key)
-{
-    return str.substr(str.find(key) + key.size());
-}
-
-CU_INLINE std::string GetRePostString(const std::string &str, const std::string &key)
-{
-    return str.substr(str.rfind(key) + key.size());
-}
-
-CU_INLINE bool StrContains(const std::string &str, const std::string &subStr) noexcept
-{
-    return (str.find(subStr) != std::string::npos);
-}
-
-CU_INLINE int StringToInteger(const std::string &str) noexcept
-{
-    char buffer[32] = { 0 };
-    int buffer_offset = 0;
-    for (int pos = 0; pos < str.size() && pos < (sizeof(buffer) - 1); pos++) {
-        if (str[pos] >= '0' && str[pos] <= '9') {
-            buffer[buffer_offset] = str[pos];
-            buffer_offset++;
+        int count = 0;
+        size_t start_pos = 0;
+        for (size_t pos = 0; pos < str.size(); pos++) {
+            if (str[pos] == delimiter || pos == (str.size() - 1)) {
+                if (start_pos < pos) {
+                    if (count == targetCount) {
+                        return str.substr(start_pos, (pos - start_pos));
+                    }
+                    count++;
+                }
+                start_pos = pos + 1;
+            }
         }
+        return {};
     }
-    buffer[buffer_offset] = '\0';
-    return std::atoi(buffer);
-}
 
-CU_INLINE int64_t StringToLong(const std::string &str) noexcept
-{
-    char buffer[32] = { 0 };
-    int buffer_offset = 0;
-    for (int pos = 0; pos < str.size() && pos < (sizeof(buffer) - 1); pos++) {
-        if (str[pos] >= '0' && str[pos] <= '9') {
-            buffer[buffer_offset] = str[pos];
-            buffer_offset++;
+    CU_INLINE std::string StrFormat(const char* format, ...)
+    {
+        std::string content{};
+        int len = 0;
+        {
+            va_list args{};
+            va_start(args, format);
+            len = std::vsnprintf(nullptr, 0, format, args) + 1;
+            va_end(args);
         }
-    }
-    buffer[buffer_offset] = '\0';
-    return std::atoll(buffer);
-}
-
-CU_INLINE double StringToDouble(const std::string &str) noexcept
-{
-    char buffer[32] = { 0 };
-    int buffer_offset = 0;
-    for (int pos = 0; pos < str.size() && pos < (sizeof(buffer) - 1); pos++) {
-        if ((str[pos] >= '0' && str[pos] <= '9') || str[pos] == '.') {
-            buffer[buffer_offset] = str[pos];
-            buffer_offset++;
+        if (CU_LIKELY(len > 1)) {
+            auto buffer = new char[len];
+            CU_MEMSET(buffer, 0, len);
+            va_list args{};
+            va_start(args, format);
+            std::vsnprintf(buffer, len, format, args);
+            va_end(args);
+            content = buffer;
+            delete[] buffer;
         }
+        return content;
     }
-    buffer[buffer_offset] = '\0';
-    return std::atof(buffer);
-}
 
-CU_INLINE uint64_t String16BitToInteger(const std::string &str) noexcept
-{
-    char buffer[32] = { 0 };
-    int buffer_offset = 0;
-    for (int pos = 0; pos < str.size() && pos < (sizeof(buffer) - 1); pos++) {
-        if ((str[pos] >= '0' && str[pos] <= '9') || 
-            (str[pos] >= 'a' && str[pos] <= 'f') || 
-            (str[pos] >= 'A' && str[pos] <= 'F')
-        ) {
-            buffer[buffer_offset] = str[pos];
-            buffer_offset++;
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty>
+    SubPrevStr(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter)
+    {
+        return str.substr(0, str.find(delimiter));
+    }
+
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty> SubPrevStr(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter)
+    {
+        for (size_t pos = 0; pos < str.size(); pos++) {
+            if (str[pos] == delimiter) {
+                return str.substr(0, pos);
+            }
         }
+        return str;
     }
-    buffer[buffer_offset] = '\0';
-    return std::strtoull(buffer, nullptr, 16);
-}
 
-CU_INLINE std::string TrimStr(const std::string &str) 
-{
-    std::string trimedStr{};
-    for (const auto &ch : str) {
-        switch (ch) {
-            case ' ':
-            case '\n':
-            case '\t':
-            case '\r':
-            case '\f':
-            case '\a':
-            case '\b':
-            case '\v':
-                break;
-            default:
-                trimedStr += ch;
-                break;
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty>
+    SubRePrevStr(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter)
+    {
+        return str.substr(0, str.rfind(delimiter));
+    }
+
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty> SubRePrevStr(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter)
+    {
+        for (size_t pos = (str.size() - 1); pos >= 0; pos--) {
+            if (str[pos] == delimiter) {
+                return str.substr(0, pos);
+            }
         }
+        return str;
     }
-    return trimedStr;
-}
 
-template <typename _Ty>
-CU_INLINE size_t GetHash(const _Ty &val)
-{
-    std::hash<_Ty> hashVal{};
-    return hashVal(val);
-}
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty>
+    SubPostStr(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter)
+    {
+        auto sub_pos = str.find(delimiter);
+        if (sub_pos != std::basic_string<_Char_Ty>::npos) {
+            return str.substr(sub_pos + delimiter.size());
+        }
+        return {};
+    }
 
-template <typename _Ty>
-CU_INLINE bool GenericCompare(const _Ty &val0, const _Ty &val1) noexcept
-{
-    const auto val0_addr = std::addressof(val0);
-    const auto val1_addr = std::addressof(val1);
-    if (CU_UNLIKELY(val0_addr == val1_addr)) {
-        return true;
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty> SubPostStr(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter)
+    {
+        for (size_t pos = 0; pos < (str.size() - 1); pos++) {
+            if (str[pos] == delimiter) {
+                return str.substr(pos + 1);
+            }
+        }
+        return {};
     }
-    return CU_COMPARE(val0_addr, val1_addr, sizeof(_Ty));
-}
 
-template <typename _Ty>
-CU_INLINE int RoundNum(_Ty num) noexcept
-{
-    if (num > INT_MAX) {
-        return INT_MAX;
-    } else if (num < INT_MIN) {
-        return INT_MIN;
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty>
+    SubRePostStr(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter)
+    {
+        auto sub_pos = str.rfind(delimiter);
+        if (sub_pos != std::basic_string<_Char_Ty>::npos) {
+            return str.substr(sub_pos + delimiter.size());
+        }
+        return {};
     }
-    int intNum = 0;
-    int dec = static_cast<int>(num * 10) % 10;
-    if (dec >= 5) {
-        intNum = static_cast<int>(num) + 1;
-    } else {
-        intNum = static_cast<int>(num);
-    }
-    return intNum;
-}
 
-template <typename _Ty>
-CU_INLINE _Ty AbsVal(_Ty num) noexcept
-{
-    if (num < 0) {
-        return -num;
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty> SubRePostStr(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter)
+    {
+        for (size_t pos = (str.size() - 2); pos >= 0; pos--) {
+            if (str[pos] == delimiter) {
+                return str.substr(pos + 1);
+            }
+        }
+        return {};
     }
-    return num;
-}
 
-template <typename _Ty>
-CU_INLINE _Ty SquareVal(_Ty value) noexcept
-{
-    return (value * value);
-}
+    template <typename _Char_Ty>
+    CU_INLINE bool StrContains(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &key) noexcept
+    {
+        return (str.find(key) != std::string::npos);
+    }
 
-template <typename _Ty>
-CU_INLINE _Ty SqrtVal(_Ty value) noexcept
-{
-    if (value == 0) {
-        return 0;
+    template <typename _Char_Ty>
+    CU_INLINE bool StrStartsWith(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &key) noexcept
+    {
+        if (str.size() < key.size()) {
+            return false;
+        }
+        return CU_COMPARE(str.data(), key.data(), (key.size() * sizeof(_Char_Ty)));
     }
-    auto high = static_cast<double>(value), low = 0.0;
-    if (value < 1.0) {
-        high = 1.0;
+
+    template <typename _Char_Ty>
+    CU_INLINE bool StrEndsWith(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &key) noexcept
+    {
+        if (str.size() < key.size()) {
+            return false;
+        }
+        return CU_COMPARE((str.data() + (str.size() - key.size())), key.data(), (key.size() * sizeof(_Char_Ty)));
     }
-    while ((high - low) > 0.01) {
-        auto mid = (low + high) / 2;
-        if ((mid * mid) > value) {
-            high = mid;
+
+    CU_INLINE int StrToInt(const std::string &str) noexcept
+    {
+        long integer = std::strtol(str.c_str(), nullptr, 10);
+        if (integer > INT_MAX) {
+            return INT_MAX;
+        }
+        if (integer < INT_MIN) {
+            return INT_MIN;
+        }
+        return static_cast<int>(integer);
+    }
+
+    CU_INLINE int StrToInt(const std::wstring &str) noexcept
+    {
+        long integer = std::wcstol(str.c_str(), nullptr, 10);
+        if (integer > INT_MAX) {
+            return INT_MAX;
+        }
+        if (integer < INT_MIN) {
+            return INT_MIN;
+        }
+        return static_cast<int>(integer);
+    }
+
+    CU_INLINE int64_t StrToLong(const std::string &str) noexcept
+    {
+        return std::strtoll(str.c_str(), nullptr, 10);
+    }
+
+    CU_INLINE int64_t StrToLong(const std::wstring &str) noexcept
+    {
+        return std::wcstoll(str.c_str(), nullptr, 10);
+    }
+
+    CU_INLINE uint64_t StrToULong(const std::string &str) noexcept
+    {
+        return std::strtoull(str.c_str(), nullptr, 10);
+    }
+
+    CU_INLINE uint64_t StrToULong(const std::wstring &str) noexcept
+    {
+        return std::wcstoull(str.c_str(), nullptr, 10);
+    }
+
+    CU_INLINE double StrToDouble(const std::string &str) noexcept
+    {
+        return std::strtod(str.c_str(), nullptr);
+    }
+
+    CU_INLINE double StrToDouble(const std::wstring &str) noexcept
+    {
+        return std::wcstod(str.c_str(), nullptr);
+    }
+
+    CU_INLINE int64_t HexToInt(const std::string &str) noexcept
+    {
+        return std::strtoll(str.c_str(), nullptr, 16);
+    }
+
+    CU_INLINE int64_t HexToInt(const std::wstring &str) noexcept
+    {
+        return std::wcstoll(str.c_str(), nullptr, 16);
+    }
+
+    template <typename _Val_Ty>
+    CU_INLINE std::string IntToStr(_Val_Ty value) 
+    {
+        char buffer[32] = { 0 };
+        auto pos = sizeof(buffer) - 2;
+        if (value > 0) {
+            for (auto integer = value; integer > 0; integer /= 10) {
+                buffer[pos] = '0' + integer % 10;
+                pos--;
+            }
+            pos++;
+        } else if (value < 0) {
+            for (auto integer = -value; integer > 0; integer /= 10) {
+                buffer[pos] = '0' + integer % 10;
+                pos--;
+            }
+            buffer[pos] = '-';
         } else {
-            low = mid;
+            buffer[pos] = '0';
         }
+        return std::string(&buffer[pos]);
     }
-    return static_cast<_Ty>((low + high) / 2);
-}
 
-template <typename _List_Ty, typename _Val_Ty>
-CU_INLINE bool ListContains(const _List_Ty &list, const _Val_Ty &value)
-{
-    return (std::find(list.begin(), list.end(), value) != list.end());
-}
-
-template <typename _Ty>
-CU_INLINE const _Ty &VecMaxItem(const std::vector<_Ty> &vec) noexcept
-{
-    auto maxIter = vec.begin();
-    for (auto iter = vec.begin(); iter < vec.end(); iter++) {
-        if (*iter > *maxIter) {
-            maxIter = iter;
-        }
-    }
-    return *maxIter;
-}
-
-template <typename _Ty>
-CU_INLINE const _Ty &VecMinItem(const std::vector<_Ty> &vec) noexcept
-{
-    auto minIter = vec.begin();
-    for (auto iter = vec.begin(); iter < vec.end(); iter++) {
-        if (*iter < *minIter) {
-            minIter = iter;
-        }
-    }
-    return *minIter;
-}
-
-template <typename _Ty>
-CU_INLINE const _Ty &VecApproxItem(const std::vector<_Ty> &vec, _Ty targetVal) noexcept
-{
-    auto approxIter = vec.begin();
-    _Ty minDiff = std::numeric_limits<_Ty>::max();
-    for (auto iter = vec.begin(); iter < vec.end(); iter++) {
-        _Ty diff = std::abs(*iter - targetVal);
-        if (diff < minDiff) {
-            approxIter = iter;
-            minDiff = diff;
-        }
-    }
-    return *approxIter;
-}
-
-template <typename _Ty>
-CU_INLINE const _Ty &VecApproxMinItem(const std::vector<_Ty> &vec, _Ty targetVal) noexcept
-{
-    auto approxIter = vec.end() - 1;
-    _Ty minDiff = std::numeric_limits<_Ty>::max();
-    for (auto iter = (vec.end() - 1); iter >= vec.begin(); iter--) {
-        _Ty diff = *iter - targetVal;
-        if (diff < minDiff && diff >= 0) {
-            approxIter = iter;
-            minDiff = diff;
-        }
-    }
-    return *approxIter;
-}
-
-template <typename _Ty>
-CU_INLINE const _Ty &VecApproxMaxItem(const std::vector<_Ty> &vec, _Ty targetVal) noexcept
-{
-    auto approxIter = vec.begin();
-    _Ty minDiff = std::numeric_limits<_Ty>::max();
-    for (auto iter = vec.begin(); iter < vec.end(); iter++) {
-        _Ty diff = targetVal - *iter;
-        if (diff < minDiff && diff >= 0) {
-            approxIter = iter;
-            minDiff = diff;
-        }
-    }
-    return *approxIter;
-}
-
-template <typename _Ty>
-CU_INLINE _Ty AverageVec(const std::vector<_Ty> &vec) noexcept
-{
-    _Ty sum{};
-    for (auto iter = vec.begin(); iter < vec.end(); iter++) {
-        sum += *iter;
-    }
-    return (sum / vec.size());
-}
-
-template <typename _Ty>
-CU_INLINE _Ty SumVec(const std::vector<_Ty> &vec) noexcept
-{
-    _Ty sum{};
-    for (auto iter = vec.begin(); iter < vec.end(); iter++) {
-        sum += *iter;
-    }
-    return sum;
-}
-
-template <typename _Ty>
-CU_INLINE std::vector<_Ty> UniqueVec(const std::vector<_Ty> &vec) 
-{
-    std::vector<_Ty> uniquedVec(vec);
-    std::sort(uniquedVec.begin(), uniquedVec.end());
-    auto iter = std::unique(uniquedVec.begin(), uniquedVec.end());
-    uniquedVec.erase(iter, uniquedVec.end());
-    return uniquedVec;
-}
-
-template <typename _Ty>
-CU_INLINE std::vector<_Ty> ShrinkVec(const std::vector<_Ty> &vec, size_t size) 
-{
-    std::vector<_Ty> trimedVec(vec);
-    std::sort(trimedVec.begin(), trimedVec.end());
-    auto iter = std::unique(trimedVec.begin(), trimedVec.end());
-    trimedVec.erase(iter, trimedVec.end());
-    if (trimedVec.size() <= size) {
-        return trimedVec;
-    }
-    std::vector<_Ty> shrinkedVec{};
-    _Ty itemDiff = (trimedVec.back() - trimedVec.front()) / (size - 1);
-    for (size_t idx = 0; idx < size; idx++) {
-        _Ty selectVal = trimedVec.front() + itemDiff * idx;
-        auto selectIter = trimedVec.begin();
-        _Ty minDiff = trimedVec.back();
-        for (auto iter = trimedVec.begin(); iter < trimedVec.end(); iter++) {
-            _Ty diff = std::abs(*iter - selectVal);
-            if (diff < minDiff) {
-                selectIter = iter;
-                minDiff = diff;
-            } else {
-                break;
-            }
-        }
-        shrinkedVec.emplace_back(*selectIter);
-    }
-    return shrinkedVec;
-}
-
-template <typename _Ty>
-CU_INLINE std::vector<_Ty> ReverseVec(const std::vector<_Ty> &vec) 
-{
-    std::vector<_Ty> reversedVec(vec);
-    std::reverse(reversedVec.begin(), reversedVec.end());
-    return reversedVec;
-}
-
-CU_INLINE int GetCompileDateCode() noexcept
-{
-    static constexpr char complieDate[] = __DATE__;
-    
-    char month[4] = { 0 };
-    int year = 0;
-    int day = 0;
-    std::sscanf(complieDate, "%s %d %d", month, &day, &year);
-    if (CU_COMPARE(month, "Jan", 3)) {
-        return (year * 10000 + 100 + day);
-    }
-    if (CU_COMPARE(month, "Feb", 3)) {
-        return (year * 10000 + 200 + day);
-    }
-    if (CU_COMPARE(month, "Mar", 3)) {
-        return (year * 10000 + 300 + day);
-    }
-    if (CU_COMPARE(month, "Apr", 3)) {
-        return (year * 10000 + 400 + day);
-    }
-    if (CU_COMPARE(month, "May", 3)) {
-        return (year * 10000 + 500 + day);
-    }
-    if (CU_COMPARE(month, "Jun", 3)) {
-        return (year * 10000 + 600 + day);
-    }
-    if (CU_COMPARE(month, "Jul", 3)) {
-        return (year * 10000 + 700 + day);
-    }
-    if (CU_COMPARE(month, "Aug", 3)) {
-        return (year * 10000 + 800 + day);
-    }
-    if (CU_COMPARE(month, "Sep", 3)) {
-        return (year * 10000 + 900 + day);
-    }
-    if (CU_COMPARE(month, "Oct", 3)) {
-        return (year * 10000 + 1000 + day);
-    }
-    if (CU_COMPARE(month, "Nov", 3)) {
-        return (year * 10000 + 1100 + day);
-    }
-    if (CU_COMPARE(month, "Dec", 3)) {
-        return (year * 10000 + 1200 + day);
-    }
-    return -1;
-}
-
-CU_INLINE time_t GetTimeStampMs()
-{
-    auto time_pt = std::chrono::system_clock::now();
-    auto time_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(time_pt);
-	return static_cast<time_t>(time_ms.time_since_epoch().count());
-}
-
-CU_INLINE void SleepMs(time_t time) 
-{
-    std::this_thread::sleep_for(std::chrono::milliseconds(time));
-}
-
-CU_INLINE int RunCommand(const std::string &command) noexcept
-{
-    return std::system(command.c_str());
-}
-
-CU_INLINE void Pause()
-{
-    for (;;) {
-        std::this_thread::sleep_for(std::chrono::seconds(INT64_MAX));
-    }
-}
-
-
-#if defined(__unix__)
-
-#include <unistd.h>
-#include <fcntl.h>
-#include <dirent.h>
-#include <sys/prctl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/utsname.h>
-
-CU_INLINE void CreateFile(const std::string &filePath, const std::string &content) noexcept
-{
-    int fd = open(filePath.c_str(), (O_WRONLY | O_CREAT | O_TRUNC), 0644);
-    if (CU_LIKELY(fd >= 0)) {
-        write(fd, content.c_str(), (content.length() + 1));
-        close(fd);
-    }
-}
-
-CU_INLINE void AppendFile(const std::string &filePath, const std::string &content) noexcept
-{
-    int fd = open(filePath.c_str(), (O_WRONLY | O_APPEND | O_NONBLOCK));
-    if (fd < 0) {
-        chmod(filePath.c_str(), 0666);
-        fd = open(filePath.c_str(), (O_WRONLY | O_APPEND | O_NONBLOCK));
-    }
-    if (CU_LIKELY(fd >= 0)) {
-        write(fd, content.c_str(), (content.length() + 1));
-        close(fd);
-    }
-}
-
-CU_INLINE void WriteFile(const std::string &filePath, const std::string &content) noexcept
-{
-    int fd = open(filePath.c_str(), (O_WRONLY | O_NONBLOCK));
-    if (fd < 0) {
-        chmod(filePath.c_str(), 0666);
-        fd = open(filePath.c_str(), (O_WRONLY | O_NONBLOCK));
-    }
-    if (CU_LIKELY(fd >= 0)) {
-        write(fd, content.c_str(), (content.length() + 1));
-        close(fd);
-    }
-}
-
-CU_INLINE std::string ReadFile(const std::string &filePath) 
-{
-    std::string content{};
-    int fd = open(filePath.c_str(), (O_RDONLY | O_NONBLOCK));
-    if (CU_LIKELY(fd >= 0)) {
-        char buffer[PAGE_SIZE] = { 0 };
-        while (read(fd, buffer, (sizeof(buffer) - 1)) > 0) {
-            content += buffer;
-            CU_MEMSET(buffer, 0, sizeof(buffer));
-        }
-        close(fd);
-    }
-    return content;
-}
-
-CU_INLINE bool IsPathExists(const std::string &path) noexcept
-{
-    struct stat buffer{};
-    return (lstat(path.c_str(), std::addressof(buffer)) == 0);
-}
-
-CU_INLINE int GetThreadPid(int tid) noexcept
-{
-    int pid = -1;
-    char statusPath[PATH_MAX] = { 0 };
-    std::snprintf(statusPath, sizeof(statusPath), "/proc/%d/status", tid);
-    int fd = open(statusPath, (O_RDONLY | O_NONBLOCK));
-    if (CU_LIKELY(fd >= 0)) {
-        char buffer[PAGE_SIZE] = { 0 };
-        if (read(fd, buffer, (sizeof(buffer) - 1)) > 0) {
-            std::sscanf(std::strstr(buffer, "Tgid:"), "Tgid: %d", &pid);
-        }
-        close(fd);
-    }
-    return pid;
-}
-
-CU_INLINE std::string GetTaskCgroupType(int pid, const std::string &cgroup)
-{
-    std::string cgroupContent{};
+    template <typename _Val_Ty>
+    CU_INLINE std::wstring IntToWcs(_Val_Ty value) 
     {
-        char cgroupPath[PATH_MAX] = { 0 };
-        std::snprintf(cgroupPath, sizeof(cgroupPath), "/proc/%d/cgroup", pid);
-        int fd = open(cgroupPath, (O_RDONLY | O_NONBLOCK));
-        if (CU_LIKELY(fd >= 0)) {
-            char buffer[PAGE_SIZE] = { 0 };
-            if (read(fd, buffer, (sizeof(buffer) - 1)) > 0) {
-                cgroupContent = buffer;
+        wchar_t buffer[32] = { 0 };
+        auto pos = sizeof(buffer) - 2;
+        if (value > 0) {
+            for (auto integer = value; integer > 0; integer /= 10) {
+                buffer[pos] = CU_WCHAR('0') + integer % 10;
+                pos--;
             }
-            close(fd);
-        }
-    }
-    if (!cgroupContent.empty()) {
-        auto begin_pos = cgroupContent.find(cgroup);
-        if (begin_pos != std::string::npos) {
-            begin_pos = begin_pos + cgroup.length() + 1;
-            auto end_pos = cgroupContent.find('\n', begin_pos);
-            if (end_pos == std::string::npos) {
-                end_pos = cgroupContent.length();
+            pos++;
+        } else if (value < 0) {
+            for (auto integer = -value; integer > 0; integer /= 10) {
+                buffer[pos] = CU_WCHAR('0') + integer % 10;
+                pos--;
             }
-            return cgroupContent.substr(begin_pos, end_pos - begin_pos);
+            buffer[pos] = CU_WCHAR('-');
+        } else {
+            buffer[pos] = CU_WCHAR('0');
         }
+        return std::wstring(&buffer[pos]);
     }
-    return cgroupContent;
-}
 
-CU_INLINE std::string GetTaskName(int pid) 
-{
-    std::string taskName{};
-    char cmdlinePath[PATH_MAX] = { 0 };
-    std::snprintf(cmdlinePath, sizeof(cmdlinePath), "/proc/%d/cmdline", pid);
-    int fd = open(cmdlinePath, (O_RDONLY | O_NONBLOCK));
-    if (CU_LIKELY(fd >= 0)) {
-        char buffer[PAGE_SIZE] = { 0 };
-        if (read(fd, buffer, (sizeof(buffer) - 1)) > 0) {
-            taskName = buffer;
-        }
-        close(fd);
-    }
-    return taskName;
-}
-
-CU_INLINE std::string GetTaskComm(int pid) 
-{
-    std::string taskComm{};
-    char commPath[PATH_MAX] = { 0 };
-    std::snprintf(commPath, sizeof(commPath), "/proc/%d/comm", pid);
-    int fd = open(commPath, (O_RDONLY | O_NONBLOCK));
-    if (CU_LIKELY(fd >= 0)) {
-        char buffer[PAGE_SIZE] = { 0 };
-        if (read(fd, buffer, (sizeof(buffer) - 1)) > 0) {
-            taskComm = buffer;
-        }
-        close(fd);
-    }
-    return taskComm;
-}
-
-CU_INLINE uint64_t GetThreadRuntime(int pid, int tid) noexcept
-{
-    uint64_t runtime = 0;
-    char statPath[PATH_MAX] = { 0 };
-    std::snprintf(statPath, sizeof(statPath), "/proc/%d/task/%d/stat", pid, tid);
-    int fd = open(statPath, (O_RDONLY | O_NONBLOCK));
-    if (CU_LIKELY(fd >= 0)) {
-        char buffer[PAGE_SIZE] = { 0 };
-        if (read(fd, buffer, (sizeof(buffer) - 1)) > 0) {
-            uint64_t utime = 0, stime = 0;
-            std::sscanf(strchr(buffer, ')') + 2, "%*c %*ld %*ld %*ld %*ld %*ld %*ld %*ld %*ld %*ld %*ld %" SCNu64 " %" SCNu64,
-            &utime, &stime);
-            runtime = utime + stime;
-        }
-        close(fd);
-    }
-    return runtime;
-}
-
-CU_INLINE void SetThreadName(const std::string &name) noexcept
-{
-    prctl(PR_SET_NAME, name.c_str());
-}
-
-CU_INLINE int FindTaskPid(const std::string &taskName)
-{
-    std::vector<int> tasks{};
-    struct dirent** entries = nullptr;
-    int size = scandir("/proc", &entries, nullptr, alphasort);
-    if (CU_LIKELY(entries != nullptr)) {
-        for (int offset = 0; offset < size; offset++) {
-            auto entry = *(entries + offset);
-            auto pid = std::atoi(entry->d_name);
-            if (entry->d_type == DT_DIR && pid > 0 && pid <= INT16_MAX) {
-                tasks.emplace_back(pid);
-            }
-            std::free(entry);
-        }
-        std::free(entries);
-    }
-    for (const int &pid : tasks) {
-        char cmdlinePath[PATH_MAX] = { 0 };
-        std::snprintf(cmdlinePath, sizeof(cmdlinePath), "/proc/%d/cmdline", pid);
-        int fd = open(cmdlinePath, (O_RDONLY | O_NONBLOCK));
-        if (CU_LIKELY(fd >= 0)) {
-            char cmdline[PAGE_SIZE] = { 0 };
-            read(fd, cmdline, (sizeof(cmdline) - 1));
-            close(fd);
-            if (std::strstr(cmdline, taskName.c_str())) {
-                return pid;
+    CU_INLINE std::string TrimStr(const std::string &str) 
+    {
+        std::string trimedStr{};
+        for (size_t pos = 0; pos < str.size(); pos++) {
+            char ch = str[pos];
+            if (ch != ' ' && ch != '\n' && ch != '\t' && ch != '\r' && ch != '\b' && ch != '\v' && ch != '\f') {
+                trimedStr += ch;
             }
         }
+        return trimedStr;
     }
-    return -1;
-}
 
-CU_INLINE std::vector<int> GetTaskThreads(int pid) 
-{
-    std::vector<int> threads{};
-    char taskPath[PATH_MAX] = { 0 };
-    std::snprintf(taskPath, sizeof(taskPath), "/proc/%d/task", pid);
-    struct dirent** entries = nullptr;
-    int size = scandir(taskPath, &entries, nullptr, alphasort);
-    if (CU_LIKELY(entries != nullptr)) {
-        for (int offset = 0; offset < size; offset++) {
-            auto entry = *(entries + offset);
-            int tid = std::atoi(entry->d_name);
-            if (entry->d_type == DT_DIR && tid > 0 && tid <= INT16_MAX) {
-                threads.emplace_back(tid);
+    CU_INLINE std::wstring TrimStr(const std::wstring &str) 
+    {
+        std::wstring trimedStr{};
+        for (size_t pos = 0; pos < str.size(); pos++) {
+            auto ch = str[pos];
+            if (ch != ' ' && ch != '\n' && ch != '\t' && ch != '\r' && ch != '\b' && ch != '\v' && ch != '\f') {
+                trimedStr += ch;
             }
-            std::free(entry);
         }
-        std::free(entries);
+        return trimedStr;
     }
-    return threads;
-}
 
-CU_INLINE int GetLinuxKernelVersion() noexcept
-{
-    int version = 0;
-    struct utsname uts{};
-    if (uname(&uts) != -1) {
-        int r = 0, x = 0, y = 0;
-        std::sscanf(uts.release, "%d.%d.%d", &r, &x, &y);
-        version = r * 100000 + x * 1000 + y;
+    template <typename _Ty>
+    CU_INLINE size_t Hash(const _Ty &val)
+    {
+        std::hash<_Ty> hashVal{};
+        return hashVal(val);
     }
-    return version;
-}
 
-CU_INLINE std::string ExecCommand(const std::string &command)
-{
-    std::string content{};
-    auto fp = popen(command.c_str(), "r");
-    if (CU_LIKELY(fp != nullptr)) {
-        char buffer[PAGE_SIZE] = { 0 };
-        while (std::fread(buffer, sizeof(char), (sizeof(buffer) - 1), fp) > 0) {
-            content += buffer;
-            CU_MEMSET(buffer, 0, sizeof(buffer));
+    template <typename _Ty>
+    CU_INLINE bool Compare(const _Ty &val0, const _Ty &val1) noexcept
+    {
+        const auto val0_addr = std::addressof(val0);
+        const auto val1_addr = std::addressof(val1);
+        if (CU_UNLIKELY(val0_addr == val1_addr)) {
+            return true;
         }
-        pclose(fp);
+        return CU_COMPARE(val0_addr, val1_addr, sizeof(_Ty));
     }
-    return content;
-}
 
-CU_INLINE std::string FindPath(const std::string &path, const std::string &symbol)
-{
-    std::vector<std::string> paths{};
-    struct dirent** entries = nullptr;
-    int size = scandir(path.c_str(), &entries, nullptr, alphasort);
-    if (CU_LIKELY(entries != nullptr)) {
-        for (int offset = 0; offset < size; offset++) {
-            auto entry = *(entries + offset);
-            paths.emplace_back(entry->d_name);
-            std::free(entry);
+    template <typename _Ty>
+    CU_INLINE int64_t Round(_Ty num) noexcept
+    {
+        if ((static_cast<int64_t>(num * 10) % 10) >= 5) {
+            return static_cast<int64_t>(num) + 1;
         }
-        std::free(entries);
+        return static_cast<int64_t>(num);
     }
-    for (const auto &path : paths) {
-        if (path.find(symbol) != std::string::npos) {
-            return path;
-        }
-    }
-    return {};
-}
 
-CU_INLINE std::vector<std::string> ListDir(const std::string &path) 
-{
-    std::vector<std::string> dirPaths{};
-    struct dirent** entries = nullptr;
-    int size = scandir(path.c_str(), &entries, nullptr, alphasort);
-    if (CU_LIKELY(entries != nullptr)) {
-        for (int offset = 0; offset < size; offset++) {
-            auto entry = *(entries + offset);
-            if (entry->d_type == DT_DIR) {
-                dirPaths.emplace_back(path + '/' + entry->d_name);
+    template <typename _Ty>
+    CU_INLINE _Ty Abs(_Ty value) noexcept
+    {
+        if (value < 0) {
+            return -value;
+        }
+        return value;
+    }
+
+    template <typename _Ty>
+    CU_INLINE _Ty Square(_Ty value) noexcept
+    {
+        return (value * value);
+    }
+
+    template <typename _Ty>
+    CU_INLINE _Ty Sqrt(_Ty value, double accuracy = 0.01) noexcept
+    {
+        if (value == 0) {
+            return 0;
+        }
+        auto high = static_cast<double>(value), low = 0.0;
+        if (value < 1.0) {
+            high = 1.0;
+        }
+        while ((high - low) > accuracy) {
+            auto mid = (low + high) / 2;
+            if ((mid * mid) > value) {
+                high = mid;
+            } else {
+                low = mid;
             }
-            std::free(entry);
         }
-        std::free(entries);
+        return static_cast<_Ty>((low + high) / 2);
     }
-    return dirPaths;
-}
 
-CU_INLINE std::vector<std::string> ListFile(const std::string &path, uint8_t d_type = DT_REG)
-{
-    std::vector<std::string> filePaths{};
-    struct dirent** entries = nullptr;
-    int size = scandir(path.c_str(), &entries, nullptr, alphasort);
-    if (CU_LIKELY(entries != nullptr)) {
-        for (int offset = 0; offset < size; offset++) {
-            auto entry = *(entries + offset);
-            if (entry->d_type == d_type) {
-                filePaths.emplace_back(path + '/' + entry->d_name);
+    template <typename _List_Ty, typename _Val_Ty>
+    CU_INLINE bool Contains(const _List_Ty &list, const _Val_Ty &value)
+    {
+        if (list.size() == 0) {
+            return false;
+        }
+        return (std::find(list.begin(), list.end(), value) != list.end());
+    }
+
+    template <typename _List_Ty>
+    CU_INLINE typename _List_Ty::const_iterator MaxIter(const _List_Ty &list) noexcept
+    {
+        if (list.size() == 0) {
+            return list.end();
+        }
+        auto maxIter = list.begin();
+        for (auto iter = (list.begin() + 1); iter < list.end(); iter++) {
+            if (*iter > *maxIter) {
+                maxIter = iter;
             }
-            std::free(entry);
         }
-        std::free(entries);
+        return maxIter;
     }
-    return filePaths;
-}
 
-#if defined(__ANDROID_API__)
+    template <typename _List_Ty>
+    CU_INLINE typename _List_Ty::const_iterator MinIter(const _List_Ty &list) noexcept
+    {
+        if (list.size() == 0) {
+            return list.end();
+        }
+        auto minIter = list.begin();
+        for (auto iter = (list.begin() + 1); iter < list.end(); iter++) {
+            if (*iter < *minIter) {
+                minIter = iter;
+            }
+        }
+        return minIter;
+    }
 
-#include <sys/system_properties.h>
+    template <typename _List_Ty, typename _Val_Ty>
+    CU_INLINE typename _List_Ty::const_iterator ApproxIter(const _List_Ty &list, _Val_Ty targetVal) noexcept
+    {
+        if (list.size() == 0) {
+            return list.end();
+        }
+        auto approxIter = list.begin();
+        auto minDiff = std::abs(*approxIter - targetVal);
+        for (auto iter = (list.begin() + 1); iter < list.end(); iter++) {
+            auto diff = std::abs(*iter - targetVal);
+            if (diff < minDiff) {
+                approxIter = iter;
+                minDiff = diff;
+            }
+        }
+        return approxIter;
+    }
 
-CU_INLINE std::string DumpTopActivityInfo() 
-{
-    std::string activityInfo{};
-    auto fp = popen("dumpsys activity oom 2>/dev/null", "r");
-    if (CU_LIKELY(fp != nullptr)) {
-        char buffer[PAGE_SIZE]= { 0 };
-        while (std::fgets(buffer, sizeof(buffer), fp) != nullptr) {
-            if (std::strstr(buffer, "top-activity")) {
-                activityInfo = buffer;
+    template <typename _List_Ty, typename _Val_Ty>
+    CU_INLINE typename _List_Ty::const_iterator ApproxGreaterIter(const _List_Ty &list, _Val_Ty targetVal) noexcept
+    {
+        if (list.size() == 0) {
+            return list.end();
+        }
+        auto approxIter = list.end() - 1;
+        auto minDiff = std::numeric_limits<_Val_Ty>::max();
+        for (auto iter = list.begin(); iter < list.end(); iter++) {
+            auto diff = *iter - targetVal;
+            if (diff >= 0 && diff < minDiff) {
+                approxIter = iter;
+                minDiff = diff;
+            }
+        }
+        return approxIter;
+    }
+
+    template <typename _List_Ty, typename _Val_Ty>
+    CU_INLINE typename _List_Ty::const_iterator ApproxLesserIter(const _List_Ty &list, _Val_Ty targetVal) noexcept
+    {
+        if (list.size() == 0) {
+            return list.end();
+        }
+        auto approxIter = list.begin();
+        auto minDiff = std::numeric_limits<_Val_Ty>::max();
+        for (auto iter = list.begin(); iter < list.end(); iter++) {
+            auto diff = targetVal - *iter;
+            if (diff >= 0 && diff < minDiff) {
+                approxIter = iter;
+                minDiff = diff;
+            }
+        }
+        return approxIter;
+    }
+
+    template <typename _List_Ty>
+    CU_INLINE int64_t Average(const _List_Ty &list) noexcept
+    {
+        if (list.size() == 0) {
+            return 0;
+        }
+        int64_t sum = 0;
+        for (auto iter = list.begin(); iter < list.end(); iter++) {
+            sum += *iter;
+        }
+        return (sum / list.size());
+    }
+
+    template <typename _List_Ty>
+    CU_INLINE int64_t Sum(const _List_Ty &list) noexcept
+    {
+        if (list.size() == 0) {
+            return 0;
+        }
+        int64_t sum = 0;
+        for (auto iter = list.begin(); iter < list.end(); iter++) {
+            sum += *iter;
+        }
+        return sum;
+    }
+
+    template <typename _List_Ty>
+    CU_INLINE _List_Ty Reverse(const _List_Ty &list) 
+    {
+        if (list.size() == 0) {
+            return {};
+        }
+        _List_Ty reversedList(list);
+        std::reverse(reversedList.begin(), reversedList.end());
+        return reversedList;
+    }
+
+    template <typename _List_Ty>
+    CU_INLINE _List_Ty Trim(const _List_Ty &list, size_t max_size = SIZE_MAX, int64_t min_val = INT64_MIN, int64_t max_val = INT64_MAX)
+    {
+        if (list.size() == 0 || max_size == 0 || min_val > max_val) {
+            return {};
+        }
+
+        _List_Ty list_copy(list);
+        std::sort(list_copy.begin(), list_copy.end());
+        list_copy.erase(std::unique(list_copy.begin(), list_copy.end()), list_copy.end());
+        if (list_copy.front() > max_val || list_copy.back() < min_val) {
+            return {};
+        }
+
+        auto begin_iter = list_copy.end() - 1;
+        for (auto iter = list_copy.begin(); iter < (list_copy.end() - 1); iter++) {
+            if (*iter >= min_val) {
+                begin_iter = iter;
                 break;
             }
         }
-        pclose(fp);
-    }
-    return activityInfo;
-}
+        auto end_iter = list_copy.begin();
+        for (auto iter = (list_copy.end() - 1); iter > list_copy.begin(); iter--) {
+            if (*iter <= max_val) {
+                end_iter = iter;
+                break;
+            }
+        }
+        if (begin_iter == end_iter) {
+            return _List_Ty(begin_iter, (begin_iter + 1));
+        }
+        if (static_cast<size_t>(end_iter - begin_iter) <= max_size) {
+            return _List_Ty(begin_iter, (end_iter + 1));
+        }
+        if (max_size == 1) {
+            auto mid_iter = begin_iter + (end_iter - begin_iter) / 2;
+            return _List_Ty(mid_iter, (mid_iter + 1));
+        }
 
-enum class ScreenState : uint8_t {SCREEN_OFF, SCREEN_ON};
-
-CU_INLINE ScreenState GetScreenStateViaCgroup() noexcept
-{
-    ScreenState state = ScreenState::SCREEN_ON;
-    int fd = open("/dev/cpuset/restricted/tasks", (O_RDONLY | O_NONBLOCK));
-    if (CU_LIKELY(fd >= 0)) {
-        char buffer[PAGE_SIZE] = { 0 };
-        if (read(fd, buffer, (sizeof(buffer) - 1)) > 0) {
-            int taskCount = 0;
-            for (int pos = 0; pos < sizeof(buffer); pos++) {
-                if (buffer[pos] == '\n') {
-                    taskCount++;
-                } else if (buffer[pos] == 0) {
+        auto cur_iter = list_copy.begin();
+        auto begin_val = *begin_iter;
+        auto target_diff = (*end_iter - begin_val) / (max_size - 1);
+        for (size_t pos = 0; pos < max_size; pos++) {
+            auto target_val = begin_val + target_diff * pos;
+            auto select_iter = begin_iter;
+            auto min_diff = INT64_MAX;
+            for (auto iter = begin_iter; iter <= end_iter; iter++) {
+                auto diff = std::abs(static_cast<int64_t>(*iter - target_val));
+                if (diff < min_diff) {
+                    select_iter = iter;
+                    min_diff = diff;
+                } else {
                     break;
                 }
             }
-            if (taskCount > 10) {
-                state = ScreenState::SCREEN_OFF;
+            cur_iter = list_copy.begin() + pos;
+            *cur_iter = *select_iter;
+            if (select_iter > begin_iter) {
+                begin_iter = select_iter;
+            }
+            if (begin_iter == end_iter) {
+                break;
             }
         }
-        close(fd);
+        return _List_Ty(list_copy.begin(), (cur_iter + 1));
     }
-    return state;
-}
 
-CU_INLINE ScreenState GetScreenStateViaWakelock() noexcept
-{
-    ScreenState state = ScreenState::SCREEN_ON;
-    int fd = open("/sys/power/wake_lock", (O_RDONLY | O_NONBLOCK));
-    if (CU_LIKELY(fd >= 0)) {
-        char buffer[PAGE_SIZE] = { 0 };
-        if (read(fd, buffer, (sizeof(buffer) - 1)) > 0) {
-            if (!std::strstr(buffer, "PowerManagerService.Display")) {
-                state = ScreenState::SCREEN_OFF;
-            }
+    CU_INLINE int CompileDateCode() noexcept
+    {
+        static constexpr char complieDate[] = __DATE__;
+    
+        char month[4] = { 0 };
+        int year = 0;
+        int day = 0;
+        (void)std::sscanf(complieDate, "%s %d %d", month, &day, &year);
+        if (CU_COMPARE(month, "Jan", 3)) {
+            return (year * 10000 + 100 + day);
         }
-        close(fd);
+        if (CU_COMPARE(month, "Feb", 3)) {
+            return (year * 10000 + 200 + day);
+        }
+        if (CU_COMPARE(month, "Mar", 3)) {
+            return (year * 10000 + 300 + day);
+        }
+        if (CU_COMPARE(month, "Apr", 3)) {
+            return (year * 10000 + 400 + day);
+        }
+        if (CU_COMPARE(month, "May", 3)) {
+            return (year * 10000 + 500 + day);
+        }
+        if (CU_COMPARE(month, "Jun", 3)) {
+            return (year * 10000 + 600 + day);
+        }
+        if (CU_COMPARE(month, "Jul", 3)) {
+            return (year * 10000 + 700 + day);
+        }
+        if (CU_COMPARE(month, "Aug", 3)) {
+            return (year * 10000 + 800 + day);
+        }
+        if (CU_COMPARE(month, "Sep", 3)) {
+            return (year * 10000 + 900 + day);
+        }
+        if (CU_COMPARE(month, "Oct", 3)) {
+            return (year * 10000 + 1000 + day);
+        }
+        if (CU_COMPARE(month, "Nov", 3)) {
+            return (year * 10000 + 1100 + day);
+        }
+        if (CU_COMPARE(month, "Dec", 3)) {
+            return (year * 10000 + 1200 + day);
+        }
+        return -1;
     }
-    return state;
+
+    CU_INLINE time_t TimeStamp()
+    {
+        auto time_pt = std::chrono::system_clock::now();
+        auto time_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(time_pt);
+	    return static_cast<time_t>(time_ms.time_since_epoch().count());
+    }
+
+    CU_INLINE void SleepMs(time_t time) 
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(time));
+    }
+
+    CU_INLINE int RunCommand(const std::string &command) noexcept
+    {
+        return std::system(command.c_str());
+    }
+
+    CU_INLINE void Pause()
+    {
+        for (;;) {
+            std::this_thread::sleep_for(std::chrono::seconds(INT64_MAX));
+        }
+    }
 }
 
-CU_INLINE int GetAndroidAPILevel() noexcept
-{
-    return android_get_device_api_level();
-}
-
-
-#endif // __ANDROID_API__
-#endif // __unix__
 #endif // __LIB_CU__
