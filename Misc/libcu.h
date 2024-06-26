@@ -94,6 +94,9 @@ namespace CU
     CU_INLINE std::vector<std::basic_string<_Char_Ty>>
     StrSplit(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter)
     {
+        if (CU_UNLIKELY(delimiter.size() == 0 || str.size() <= delimiter.size())) {
+            return {};
+        }
         std::vector<std::basic_string<_Char_Ty>> splittedStrings{};
         size_t start_pos = 0;
         size_t pos = str.find(delimiter);
@@ -112,8 +115,41 @@ namespace CU
 
     template <typename _Char_Ty>
     CU_INLINE std::vector<std::basic_string<_Char_Ty>>
+    StrSplit(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter)
+    {
+        size_t delimiter_size = 0;
+        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+            if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
+                delimiter_size = pos;
+                break;
+            }
+        }
+        if (CU_UNLIKELY(delimiter_size == 0 || str.size() <= delimiter_size)) {
+            return {};
+        }
+        std::vector<std::basic_string<_Char_Ty>> splittedStrings{};
+        size_t start_pos = 0;
+        size_t pos = str.find(delimiter);
+        while (pos != std::basic_string<_Char_Ty>::npos) {
+            if (start_pos < pos) {
+                splittedStrings.emplace_back(str.substr(start_pos, (pos - start_pos)));
+            }
+            start_pos = pos + delimiter_size;
+            pos = str.find(delimiter, start_pos);
+        }
+        if (start_pos < str.size()) {
+            splittedStrings.emplace_back(str.substr(start_pos));
+        }
+        return splittedStrings;
+    }
+
+    template <typename _Char_Ty>
+    CU_INLINE std::vector<std::basic_string<_Char_Ty>>
     StrSplit(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter) 
     {
+        if (CU_UNLIKELY(str.size() <= 1)) {
+            return {};
+        }
         std::vector<std::basic_string<_Char_Ty>> splittedStrings{};
         size_t start_pos = 0;
         for (size_t pos = 0; pos < str.size(); pos++) {
@@ -131,6 +167,9 @@ namespace CU
     CU_INLINE std::basic_string<_Char_Ty>
     StrSplitAt(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter, int targetCount) 
     {
+        if (CU_UNLIKELY(delimiter.size() == 0 || str.size() <= delimiter.size())) {
+            return {};
+        }
         int count = 0;
         size_t start_pos = 0;
         size_t pos = str.find(delimiter);
@@ -151,8 +190,45 @@ namespace CU
     }
 
     template <typename _Char_Ty>
-    CU_INLINE std::basic_string<_Char_Ty> StrSplitAt(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter, int targetCount) 
+    CU_INLINE std::basic_string<_Char_Ty>
+    StrSplitAt(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter, int targetCount) 
     {
+        size_t delimiter_size = 0;
+        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+            if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
+                delimiter_size = pos;
+                break;
+            }
+        }
+        if (CU_UNLIKELY(delimiter_size == 0 || str.size() <= delimiter_size)) {
+            return {};
+        }
+        int count = 0;
+        size_t start_pos = 0;
+        size_t pos = str.find(delimiter);
+        while (pos != std::basic_string<_Char_Ty>::npos) {
+            if (start_pos < pos) {
+                if (count == targetCount) {
+                    return str.substr(start_pos, (pos - start_pos));
+                }
+                count++;
+            }
+            start_pos = pos + delimiter_size;
+            pos = str.find(delimiter, start_pos);
+        }
+        if (start_pos < str.size() && count == targetCount) {
+            return str.substr(start_pos);
+        }
+        return {};
+    }
+
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty> 
+    StrSplitAt(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter, int targetCount) 
+    {
+        if (CU_UNLIKELY(str.size() <= 1)) {
+            return {};
+        }
         int count = 0;
         size_t start_pos = 0;
         for (size_t pos = 0; pos < str.size(); pos++) {
@@ -196,12 +272,34 @@ namespace CU
     CU_INLINE std::basic_string<_Char_Ty>
     SubPrevStr(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter)
     {
+        if (CU_UNLIKELY(delimiter.size() == 0 || str.size() <= delimiter.size())) {
+            return str;
+        }
+        return str.substr(0, str.find(delimiter));
+    }
+
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty> SubPrevStr(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter)
+    {
+        size_t delimiter_size = 0;
+        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+            if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
+                delimiter_size = pos;
+                break;
+            }
+        }
+        if (CU_UNLIKELY(delimiter_size == 0 || str.size() < delimiter_size)) {
+            return str;
+        }
         return str.substr(0, str.find(delimiter));
     }
 
     template <typename _Char_Ty>
     CU_INLINE std::basic_string<_Char_Ty> SubPrevStr(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter)
     {
+        if (CU_UNLIKELY(str.size() <= 1)) {
+            return str;
+        }
         for (size_t pos = 0; pos < str.size(); pos++) {
             if (str[pos] == delimiter) {
                 return str.substr(0, pos);
@@ -214,12 +312,34 @@ namespace CU
     CU_INLINE std::basic_string<_Char_Ty>
     SubRePrevStr(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter)
     {
+        if (CU_UNLIKELY(delimiter.size() == 0 || str.size() <= delimiter.size())) {
+            return str;
+        }
+        return str.substr(0, str.rfind(delimiter));
+    }
+
+    template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty> SubRePrevStr(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter)
+    {
+        size_t delimiter_size = 0;
+        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+            if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
+                delimiter_size = pos;
+                break;
+            }
+        }
+        if (CU_UNLIKELY(delimiter_size == 0 || str.size() < delimiter_size)) {
+            return str;
+        }
         return str.substr(0, str.rfind(delimiter));
     }
 
     template <typename _Char_Ty>
     CU_INLINE std::basic_string<_Char_Ty> SubRePrevStr(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter)
     {
+        if (CU_UNLIKELY(str.size() <= 1)) {
+            return str;
+        }
         for (size_t pos = (str.size() - 1); pos >= 0; pos--) {
             if (str[pos] == delimiter) {
                 return str.substr(0, pos);
@@ -232,6 +352,9 @@ namespace CU
     CU_INLINE std::basic_string<_Char_Ty>
     SubPostStr(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter)
     {
+        if (CU_UNLIKELY(delimiter.size() == 0 || str.size() <= delimiter.size())) {
+            return {};
+        }
         auto sub_pos = str.find(delimiter);
         if (sub_pos != std::basic_string<_Char_Ty>::npos) {
             return str.substr(sub_pos + delimiter.size());
@@ -240,8 +363,32 @@ namespace CU
     }
 
     template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty>
+    SubPostStr(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter)
+    {
+        size_t delimiter_size = 0;
+        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+            if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
+                delimiter_size = pos;
+                break;
+            }
+        }
+        if (CU_UNLIKELY(delimiter_size == 0 || str.size() <= delimiter_size)) {
+            return {};
+        }
+        auto sub_pos = str.find(delimiter);
+        if (sub_pos != std::basic_string<_Char_Ty>::npos) {
+            return str.substr(sub_pos + delimiter_size);
+        }
+        return {};
+    }
+
+    template <typename _Char_Ty>
     CU_INLINE std::basic_string<_Char_Ty> SubPostStr(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter)
     {
+        if (CU_UNLIKELY(str.size() <= 1)) {
+            return {};
+        }
         for (size_t pos = 0; pos < (str.size() - 1); pos++) {
             if (str[pos] == delimiter) {
                 return str.substr(pos + 1);
@@ -254,6 +401,9 @@ namespace CU
     CU_INLINE std::basic_string<_Char_Ty>
     SubRePostStr(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter)
     {
+        if (CU_UNLIKELY(delimiter.size() == 0 || str.size() <= delimiter.size())) {
+            return {};
+        }
         auto sub_pos = str.rfind(delimiter);
         if (sub_pos != std::basic_string<_Char_Ty>::npos) {
             return str.substr(sub_pos + delimiter.size());
@@ -262,8 +412,32 @@ namespace CU
     }
 
     template <typename _Char_Ty>
+    CU_INLINE std::basic_string<_Char_Ty>
+    SubRePostStr(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter)
+    {
+        size_t delimiter_size = 0;
+        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+            if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
+                delimiter_size = pos;
+                break;
+            }
+        }
+        if (CU_UNLIKELY(delimiter_size == 0 || str.size() <= delimiter_size)) {
+            return {};
+        }
+        auto sub_pos = str.rfind(delimiter);
+        if (sub_pos != std::basic_string<_Char_Ty>::npos) {
+            return str.substr(sub_pos + delimiter_size);
+        }
+        return {};
+    }
+
+    template <typename _Char_Ty>
     CU_INLINE std::basic_string<_Char_Ty> SubRePostStr(const std::basic_string<_Char_Ty> &str, _Char_Ty delimiter)
     {
+        if (CU_UNLIKELY(str.size() <= 1)) {
+            return {};
+        }
         for (size_t pos = (str.size() - 2); pos >= 0; pos--) {
             if (str[pos] == delimiter) {
                 return str.substr(pos + 1);
@@ -279,21 +453,59 @@ namespace CU
     }
 
     template <typename _Char_Ty>
+    CU_INLINE bool StrContains(const std::basic_string<_Char_Ty> &str, const _Char_Ty* key) noexcept
+    {
+        return (str.find(key) != std::string::npos);
+    }
+
+    template <typename _Char_Ty>
     CU_INLINE bool StrStartsWith(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &key) noexcept
     {
-        if (str.size() < key.size()) {
+        if (CU_UNLIKELY(key.size() == 0 || str.size() < key.size())) {
             return false;
         }
         return CU_COMPARE(str.data(), key.data(), (key.size() * sizeof(_Char_Ty)));
     }
 
     template <typename _Char_Ty>
+    CU_INLINE bool StrStartsWith(const std::basic_string<_Char_Ty> &str, const _Char_Ty* key) noexcept
+    {
+        size_t key_size = 0;
+        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+            if (*(key + pos) == static_cast<_Char_Ty>(0)) {
+                key_size = pos;
+                break;
+            }
+        }
+        if (CU_UNLIKELY(key_size == 0 || str.size() < key_size)) {
+            return false;
+        }
+        return CU_COMPARE(str.data(), key, (key_size * sizeof(_Char_Ty)));
+    }
+
+    template <typename _Char_Ty>
     CU_INLINE bool StrEndsWith(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &key) noexcept
     {
-        if (str.size() < key.size()) {
+        if (CU_UNLIKELY(key.size() == 0 || str.size() < key.size())) {
             return false;
         }
         return CU_COMPARE((str.data() + (str.size() - key.size())), key.data(), (key.size() * sizeof(_Char_Ty)));
+    }
+
+    template <typename _Char_Ty>
+    CU_INLINE bool StrEndsWith(const std::basic_string<_Char_Ty> &str, const _Char_Ty* key) noexcept
+    {
+        size_t key_size = 0;
+        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+            if (*(key + pos) == static_cast<_Char_Ty>(0)) {
+                key_size = pos;
+                break;
+            }
+        }
+        if (CU_UNLIKELY(key_size == 0 || str.size() < key_size)) {
+            return false;
+        }
+        return CU_COMPARE((str.data() + (str.size() - key_size)), key, (key_size * sizeof(_Char_Ty)));
     }
 
     CU_INLINE int StrToInt(const std::string &str) noexcept
@@ -496,7 +708,7 @@ namespace CU
     template <typename _List_Ty, typename _Val_Ty>
     CU_INLINE bool Contains(const _List_Ty &list, const _Val_Ty &value)
     {
-        if (list.size() == 0) {
+        if (CU_UNLIKELY(list.size() == 0)) {
             return false;
         }
         return (std::find(list.begin(), list.end(), value) != list.end());
@@ -505,7 +717,7 @@ namespace CU
     template <typename _List_Ty>
     CU_INLINE typename _List_Ty::const_iterator MaxIter(const _List_Ty &list) noexcept
     {
-        if (list.size() == 0) {
+        if (CU_UNLIKELY(list.size() == 0)) {
             return list.end();
         }
         auto maxIter = list.begin();
@@ -520,7 +732,7 @@ namespace CU
     template <typename _List_Ty>
     CU_INLINE typename _List_Ty::const_iterator MinIter(const _List_Ty &list) noexcept
     {
-        if (list.size() == 0) {
+        if (CU_UNLIKELY(list.size() == 0)) {
             return list.end();
         }
         auto minIter = list.begin();
@@ -535,7 +747,7 @@ namespace CU
     template <typename _List_Ty, typename _Val_Ty>
     CU_INLINE typename _List_Ty::const_iterator ApproxIter(const _List_Ty &list, _Val_Ty targetVal) noexcept
     {
-        if (list.size() == 0) {
+        if (CU_UNLIKELY(list.size() == 0)) {
             return list.end();
         }
         auto approxIter = list.begin();
@@ -553,7 +765,7 @@ namespace CU
     template <typename _List_Ty, typename _Val_Ty>
     CU_INLINE typename _List_Ty::const_iterator ApproxGreaterIter(const _List_Ty &list, _Val_Ty targetVal) noexcept
     {
-        if (list.size() == 0) {
+        if (CU_UNLIKELY(list.size() == 0)) {
             return list.end();
         }
         auto approxIter = list.end() - 1;
@@ -571,7 +783,7 @@ namespace CU
     template <typename _List_Ty, typename _Val_Ty>
     CU_INLINE typename _List_Ty::const_iterator ApproxLesserIter(const _List_Ty &list, _Val_Ty targetVal) noexcept
     {
-        if (list.size() == 0) {
+        if (CU_UNLIKELY(list.size() == 0)) {
             return list.end();
         }
         auto approxIter = list.begin();
@@ -589,7 +801,7 @@ namespace CU
     template <typename _List_Ty>
     CU_INLINE int64_t Average(const _List_Ty &list) noexcept
     {
-        if (list.size() == 0) {
+        if (CU_UNLIKELY(list.size() == 0)) {
             return 0;
         }
         int64_t sum = 0;
@@ -602,7 +814,7 @@ namespace CU
     template <typename _List_Ty>
     CU_INLINE int64_t Sum(const _List_Ty &list) noexcept
     {
-        if (list.size() == 0) {
+        if (CU_UNLIKELY(list.size() == 0)) {
             return 0;
         }
         int64_t sum = 0;
@@ -615,7 +827,7 @@ namespace CU
     template <typename _List_Ty>
     CU_INLINE _List_Ty Reverse(const _List_Ty &list) 
     {
-        if (list.size() == 0) {
+        if (CU_UNLIKELY(list.size() == 0)) {
             return {};
         }
         _List_Ty reversedList(list);
@@ -626,7 +838,7 @@ namespace CU
     template <typename _List_Ty>
     CU_INLINE _List_Ty Trim(const _List_Ty &list, size_t max_size = SIZE_MAX, int64_t min_val = INT64_MIN, int64_t max_val = INT64_MAX)
     {
-        if (list.size() == 0 || max_size == 0 || min_val > max_val) {
+        if (CU_UNLIKELY(list.size() == 0 || max_size == 0 || min_val > max_val)) {
             return {};
         }
 
