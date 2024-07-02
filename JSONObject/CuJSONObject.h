@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <climits>
+#include <cstring>
 
 namespace CU
 {
@@ -41,12 +42,6 @@ namespace CU
 		inline char _GetEscapeChar(const char &ch) noexcept
 		{
 			switch (ch) {
-				case '\\':
-					return '\\';
-				case '\"':
-					return '\"';
-				case '\'':
-					return '\'';
 				case 'n':
 					return '\n';
 				case 'r':
@@ -61,8 +56,6 @@ namespace CU
 					return '\a';
 				case 'v':
 					return '\v';
-				case '/':
-					return '/';
 				default:
 					break;
 			}
@@ -103,6 +96,9 @@ namespace CU
 						break;
 					case '/':
 						JSONRaw += "\\/";
+						break;
+					case '#':
+						JSONRaw += "\\#";
 						break;
 					default:
 						JSONRaw += ch;
@@ -244,7 +240,7 @@ namespace CU
 	{
 		public:
 			JSONObject();
-			JSONObject(const std::string &JSONString);
+			JSONObject(const std::string &JSONString, bool enableComments = false);
 			JSONObject(const std::unordered_map<std::string, JSONItem> &data, const std::vector<std::string> &order);
 			JSONObject(const JSONObject &other);
 			JSONObject(JSONObject &&other) noexcept;

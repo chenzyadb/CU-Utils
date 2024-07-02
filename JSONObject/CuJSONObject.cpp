@@ -50,25 +50,25 @@ CU::JSONItem::_Init_Val CU::JSONItem::_To_Init_Val(const std::string &JSONRaw)
 					} else {
 						return createInitVal(ItemType::DOUBLE, num);
 					}
-				} else if (memcmp(rawData, "0", 1) == 0) {
+				} else if (std::memcmp(rawData, "0", 1) == 0) {
 					return createInitVal(ItemType::INTEGER, 0);
-				} else if (memcmp(rawData, "0.0", 3) == 0) {
+				} else if (std::memcmp(rawData, "0.0", 3) == 0) {
 					return createInitVal(ItemType::DOUBLE, 0.0);
 				}
 			}
 			break;
 		case 't':
-			if (memcmp(rawData, "true", 4) == 0) {
+			if (std::memcmp(rawData, "true", 4) == 0) {
 				return createInitVal(ItemType::BOOLEAN, true);
 			}
 			break;
 		case 'f':
-			if (memcmp(rawData, "false", 5) == 0) {
+			if (std::memcmp(rawData, "false", 5) == 0) {
 				return createInitVal(ItemType::BOOLEAN, false);
 			}
 			break;
 		case 'n':
-			if (memcmp(rawData, "null", 4) == 0) {
+			if (std::memcmp(rawData, "null", 4) == 0) {
 				return createInitVal(ItemType::ITEM_NULL, nullptr);
 			}
 			break;
@@ -531,10 +531,6 @@ CU::JSONArray::JSONArray(const std::string &JSONString) : data_()
 				}
 				break;
 			case ' ':
-				if (idx == ArrayIdx::ITEM_STRING || idx == ArrayIdx::ITEM_ARRAY || idx == ArrayIdx::ITEM_OBJECT) {
-					content += ch;
-				}
-				break;
 			case '\n':
 			case '\t':
 			case '\r':
@@ -867,7 +863,7 @@ CU::JSONArray::ConstIterator CU::JSONArray::end() const
 
 CU::JSONObject::JSONObject() : data_(), order_() { }
 
-CU::JSONObject::JSONObject(const std::string &JSONString) : data_(), order_() 
+CU::JSONObject::JSONObject(const std::string &JSONString, bool enableComments) : data_(), order_() 
 {
 	enum class ObjectIdx : uint8_t 
 	{NONE, KEY_FRONT, KEY_CONTENT, KEY_BACK, VALUE_FRONT, VALUE_COMMON, VALUE_STRING, VALUE_ARRAY, VALUE_OBJECT, VALUE_BACK};
@@ -994,12 +990,6 @@ CU::JSONObject::JSONObject(const std::string &JSONString) : data_(), order_()
 				}
 				break;
 			case ' ':
-				if (idx == ObjectIdx::VALUE_STRING || idx == ObjectIdx::VALUE_ARRAY || idx == ObjectIdx::VALUE_OBJECT) {
-					value += ch;
-				} else if (idx == ObjectIdx::KEY_CONTENT) {
-					key += ch;
-				}
-				break;
 			case '\n':
 			case '\t':
 			case '\r':
@@ -1027,6 +1017,15 @@ CU::JSONObject::JSONObject(const std::string &JSONString) : data_(), order_()
 					throw JSONExcept("Invalid JSONObject Structure");
 				}
 				break;
+			case '#':
+				if (enableComments) {
+					auto next_pos = JSONString.find('\n', (pos + 1));
+					if (next_pos == std::string::npos) {
+						next_pos = JSONString.size() - 1;
+					}
+					pos = next_pos;
+					break;
+				}
 			default:
 				if (idx == ObjectIdx::VALUE_FRONT) {
 					idx = ObjectIdx::VALUE_COMMON;
