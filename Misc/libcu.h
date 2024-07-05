@@ -245,29 +245,6 @@ namespace CU
         return {};
     }
 
-    CU_INLINE std::string StrFormat(const char* format, ...)
-    {
-        std::string content{};
-        int len = 0;
-        {
-            va_list args{};
-            va_start(args, format);
-            len = std::vsnprintf(nullptr, 0, format, args) + 1;
-            va_end(args);
-        }
-        if (CU_LIKELY(len > 1)) {
-            auto buffer = new char[len];
-            CU_MEMSET(buffer, 0, len);
-            va_list args{};
-            va_start(args, format);
-            std::vsnprintf(buffer, len, format, args);
-            va_end(args);
-            content = buffer;
-            delete[] buffer;
-        }
-        return content;
-    }
-
     template <typename _Char_Ty>
     CU_INLINE std::basic_string<_Char_Ty>
     SubPrevStr(const std::basic_string<_Char_Ty> &str, const std::basic_string<_Char_Ty> &delimiter)
@@ -570,52 +547,6 @@ namespace CU
     CU_INLINE int64_t HexToInt(const std::wstring &str) noexcept
     {
         return std::wcstoll(str.c_str(), nullptr, 16);
-    }
-
-    template <typename _Val_Ty>
-    CU_INLINE std::string IntToStr(_Val_Ty value) 
-    {
-        char buffer[32] = { 0 };
-        auto pos = sizeof(buffer) - 2;
-        if (value > 0) {
-            for (auto integer = value; integer > 0; integer /= 10) {
-                buffer[pos] = '0' + integer % 10;
-                pos--;
-            }
-            pos++;
-        } else if (value < 0) {
-            for (auto integer = -value; integer > 0; integer /= 10) {
-                buffer[pos] = '0' + integer % 10;
-                pos--;
-            }
-            buffer[pos] = '-';
-        } else {
-            buffer[pos] = '0';
-        }
-        return std::string(&buffer[pos]);
-    }
-
-    template <typename _Val_Ty>
-    CU_INLINE std::wstring IntToWcs(_Val_Ty value) 
-    {
-        wchar_t buffer[32] = { 0 };
-        auto pos = sizeof(buffer) - 2;
-        if (value > 0) {
-            for (auto integer = value; integer > 0; integer /= 10) {
-                buffer[pos] = CU_WCHAR('0') + integer % 10;
-                pos--;
-            }
-            pos++;
-        } else if (value < 0) {
-            for (auto integer = -value; integer > 0; integer /= 10) {
-                buffer[pos] = CU_WCHAR('0') + integer % 10;
-                pos--;
-            }
-            buffer[pos] = CU_WCHAR('-');
-        } else {
-            buffer[pos] = CU_WCHAR('0');
-        }
-        return std::wstring(&buffer[pos]);
     }
 
     CU_INLINE std::string TrimStr(const std::string &str) 
