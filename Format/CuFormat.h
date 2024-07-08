@@ -8,6 +8,7 @@
 #pragma warning(disable : 4996)
 #endif // defined(_MSC_VER)
 
+#include <exception>
 #include <string>
 #include <vector>
 #include <cstdio>
@@ -112,11 +113,14 @@ namespace CU
 
         void expand(size_t req_capacity) noexcept
         {
+            if (req_capacity < capacity) {
+                return;
+            }
             if (heap_data == nullptr && req_capacity > sizeof(stack_buffer)) {
                 heap_data = new char[req_capacity];
                 std::memcpy(heap_data, stack_buffer, length);
                 *(heap_data + length) = '\0';
-            } else if (capacity > sizeof(stack_buffer)) {
+            } else if (heap_data != nullptr) {
                 auto new_heap_data = new char[req_capacity];
                 std::memcpy(new_heap_data, heap_data, length);
                 *(new_heap_data + length) = '\0';
@@ -164,7 +168,7 @@ namespace CU
 
     inline size_t _Find_Char(const char* str, char ch, size_t start_pos = 0) noexcept
     {
-        for (size_t pos = start_pos; *(str + pos) != '\0'; pos++) {
+        for (auto pos = start_pos; *(str + pos) != '\0'; pos++) {
             if (*(str + pos) == ch) {
                 return pos;
             }
@@ -175,7 +179,7 @@ namespace CU
     inline int _String_To_Int(const char* str) noexcept
     {
         int value = 0;
-        for (int offset = 0; *(str + offset) != '\0'; offset++) {
+        for (size_t offset = 0; *(str + offset) != '\0'; offset++) {
             char ch = *(str + offset);
             if (ch >= '0' && ch <= '9') {
                 value = value * 10 + (ch - '0');
@@ -240,10 +244,19 @@ namespace CU
         return "0";
     }
 
-    template <typename _Val_Ty>
-    inline _Format_String _To_Format_String(_Val_Ty)
+    template <typename _Ptr_Ty>
+    inline _Format_String _To_Format_String(const _Ptr_Ty* value) noexcept
     {
-        throw FormatExcept("Unsupported To_String type");
+        auto addr_val = reinterpret_cast<size_t>(value);
+        if (addr_val > 0) {
+            return _Int_To_String(addr_val);
+        }
+        return "NULL";
+    }
+
+    inline _Format_String _To_Format_String(std::nullptr_t) noexcept
+    {
+        return "NULL";
     }
 
     inline _Format_String _To_Format_String(long double value) noexcept
@@ -364,7 +377,7 @@ namespace CU
         int arg_idx;
         int max_length;
 
-        _Format_Item() noexcept : content(), arg_idx(-1), max_length(INT_MAX) {}
+        _Format_Item() noexcept : content(), arg_idx(-1), max_length(INT_MAX) { }
 
         _Format_Item(const _Format_Item &other) noexcept : 
             content(other.content), 
@@ -457,7 +470,7 @@ namespace CU
         _Format_String content{};
         std::vector<_Format_Item> format_items(_Format_Impl(format));
         std::vector<_Format_String> args_list(_Args_Impl(format_items.size(), args...));
-        for (auto iter = format_items.begin(); iter < format_items.end(); iter++) {
+        for (auto iter = format_items.begin(); iter < format_items.end(); ++iter) {
             content.append(iter->content);
             if (iter->arg_idx != -1) {
                 if (iter->arg_idx >= args_list.size()) {
@@ -474,10 +487,20 @@ namespace CU
         return content.data();
     }
 
+    inline std::string Format(const char* format)
+    {
+        return format;
+    }
+
     template <typename... _Args>
     inline int Println(const char* format, const _Args &...args) 
     {
         return std::puts(Format(format, args...).c_str());
+    }
+
+    inline int Println(const char* format) noexcept
+    {
+        return std::puts(format);
     }
 
     template <typename _Ty>

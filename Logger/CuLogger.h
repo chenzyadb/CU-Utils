@@ -1,5 +1,5 @@
-// CuLogger V3 by chenzyadb.
-// Based on C++11 STL (GNUC).
+// CuLogger by chenzyadb.
+// Based on C++11 STL (GNUC) & CuFormat
 
 #if !defined(_CU_LOGGER_)
 #define _CU_LOGGER_ 1
@@ -11,15 +11,10 @@
 #include <chrono>
 #include <mutex>
 #include <condition_variable>
-#include <string>
-#include <vector>
 #include <thread>
 #include <functional>
-#include <exception>
 #include <memory>
-#include <cstdio>
-#include <cstdarg>
-#include <cstring>
+#include "CuFormat.h"
 
 namespace CU
 {
@@ -33,93 +28,34 @@ namespace CU
 				Instance_().setLogger_(level, path);
 			}
 
-			static void Error(const char* format, ...)
+			template <typename ..._Args>
+			static void Error(const char* format, const _Args &...args)
 			{
-				va_list args{};
-				va_start(args, format);
-				int len = std::vsnprintf(nullptr, 0, format, args) + 1;
-				va_end(args);
-				if (len > 1) {
-					auto buffer = new char[len];
-					std::memset(buffer, 0, len);
-					va_start(args, format);
-					std::vsnprintf(buffer, len, format, args);
-					va_end(args);
-					Instance_().joinLogQueue_(LogLevel::ERROR, buffer);
-					delete[] buffer;
-				}
+				Instance_().joinLogQueue_(LogLevel::ERROR, CU::Format(format, args...));
 			}
 
-			static void Warn(const char* format, ...)
+			template <typename ..._Args>
+			static void Warn(const char* format, const _Args &...args)
 			{
-				va_list args{};
-				va_start(args, format);
-				int len = std::vsnprintf(nullptr, 0, format, args);
-				va_end(args);
-				if (len > 0) {
-					int size = len + 1;
-					auto buffer = new char[size];
-					std::memset(buffer, 0, size);
-					va_start(args, format);
-					std::vsnprintf(buffer, size, format, args);
-					va_end(args);
-					Instance_().joinLogQueue_(LogLevel::WARN, buffer);
-					delete[] buffer;
-				}
+				Instance_().joinLogQueue_(LogLevel::WARN, CU::Format(format, args...));
 			}
 
-			static void Info(const char* format, ...)
+			template <typename ..._Args>
+			static void Info(const char* format, const _Args &...args)
 			{
-				va_list args{};
-				va_start(args, format);
-				int len = std::vsnprintf(nullptr, 0, format, args);
-				va_end(args);
-				if (len > 0) {
-					int size = len + 1;
-					auto buffer = new char[size];
-					std::memset(buffer, 0, size);
-					va_start(args, format);
-					std::vsnprintf(buffer, size, format, args);
-					va_end(args);
-					Instance_().joinLogQueue_(LogLevel::INFO, buffer);
-					delete[] buffer;
-				}
+				Instance_().joinLogQueue_(LogLevel::INFO, CU::Format(format, args...));
 			}
 
-			static void Debug(const char* format, ...)
+			template <typename ..._Args>
+			static void Debug(const char* format, const _Args &...args)
 			{
-				va_list args{};
-				va_start(args, format);
-				int len = std::vsnprintf(nullptr, 0, format, args);
-				va_end(args);
-				if (len > 0) {
-					int size = len + 1;
-					auto buffer = new char[size];
-					std::memset(buffer, 0, size);
-					va_start(args, format);
-					std::vsnprintf(buffer, size, format, args);
-					va_end(args);
-					Instance_().joinLogQueue_(LogLevel::DEBUG, buffer);
-					delete[] buffer;
-				}
+				Instance_().joinLogQueue_(LogLevel::DEBUG, CU::Format(format, args...));
 			}
 
-			static void Verbose(const char* format, ...)
+			template <typename ..._Args>
+			static void Verbose(const char* format, const _Args &...args)
 			{
-				va_list args{};
-				va_start(args, format);
-				int len = std::vsnprintf(nullptr, 0, format, args);
-				va_end(args);
-				if (len > 0) {
-					int size = len + 1;
-					auto buffer = new char[size];
-					std::memset(buffer, 0, size);
-					va_start(args, format);
-					std::vsnprintf(buffer, size, format, args);
-					va_end(args);
-					Instance_().joinLogQueue_(LogLevel::VERBOSE, buffer);
-					delete[] buffer;
-				}
+				Instance_().joinLogQueue_(LogLevel::VERBOSE, CU::Format(format, args...));
 			}
 
 			static void Flush()
@@ -186,7 +122,7 @@ namespace CU
 				}
 			}
 
-			void joinLogQueue_(const LogLevel &level, const char* content)
+			void joinLogQueue_(const LogLevel &level, const std::string &content)
 			{
 				static const auto getTimeInfo = []() -> std::string {
 					auto now = std::chrono::system_clock::now();
@@ -197,30 +133,29 @@ namespace CU
 						localTime->tm_mon + 1, localTime->tm_mday, localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
 					return buffer;
 				};
-				{
-					std::unique_lock<std::mutex> lck(mtx_);
-					if (level <= logLevel_) {
-						switch (level) {
-							case LogLevel::ERROR:
-								logQueue_.emplace_back(getTimeInfo() + " [E] " + content + '\n');
-								break;
-							case LogLevel::WARN:
-								logQueue_.emplace_back(getTimeInfo() + " [W] " + content + '\n');
-								break;
-							case LogLevel::INFO:
-								logQueue_.emplace_back(getTimeInfo() + " [I] " + content + '\n');
-								break;
-							case LogLevel::DEBUG:
-								logQueue_.emplace_back(getTimeInfo() + " [D] " + content + '\n');
-								break;
-							case LogLevel::VERBOSE:
-								logQueue_.emplace_back(getTimeInfo() + " [V] " + content + '\n');
-								break;
-							default:
-								break;
-						}
-						cv_.notify_all();
+
+				std::unique_lock<std::mutex> lck(mtx_);
+				if (level <= logLevel_) {
+					switch (level) {
+						case LogLevel::ERROR:
+							logQueue_.emplace_back(getTimeInfo() + " [E] " + content + '\n');
+							break;
+						case LogLevel::WARN:
+							logQueue_.emplace_back(getTimeInfo() + " [W] " + content + '\n');
+							break;
+						case LogLevel::INFO:
+							logQueue_.emplace_back(getTimeInfo() + " [I] " + content + '\n');
+							break;
+						case LogLevel::DEBUG:
+							logQueue_.emplace_back(getTimeInfo() + " [D] " + content + '\n');
+							break;
+						case LogLevel::VERBOSE:
+							logQueue_.emplace_back(getTimeInfo() + " [V] " + content + '\n');
+							break;
+						default:
+							break;
 					}
+					cv_.notify_all();
 				}
 			}
 
