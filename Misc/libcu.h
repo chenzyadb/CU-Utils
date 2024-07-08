@@ -652,7 +652,7 @@ namespace CU
             return list.end();
         }
         auto maxIter = list.begin();
-        for (auto iter = (list.begin() + 1); iter < list.end(); iter++) {
+        for (auto iter = (list.begin() + 1); iter < list.end(); ++iter) {
             if (*iter > *maxIter) {
                 maxIter = iter;
             }
@@ -667,7 +667,7 @@ namespace CU
             return list.end();
         }
         auto minIter = list.begin();
-        for (auto iter = (list.begin() + 1); iter < list.end(); iter++) {
+        for (auto iter = (list.begin() + 1); iter < list.end(); ++iter) {
             if (*iter < *minIter) {
                 minIter = iter;
             }
@@ -683,7 +683,7 @@ namespace CU
         }
         auto approxIter = list.begin();
         auto minDiff = std::abs(*approxIter - targetVal);
-        for (auto iter = (list.begin() + 1); iter < list.end(); iter++) {
+        for (auto iter = (list.begin() + 1); iter < list.end(); ++iter) {
             auto diff = std::abs(*iter - targetVal);
             if (diff < minDiff) {
                 approxIter = iter;
@@ -701,7 +701,7 @@ namespace CU
         }
         auto approxIter = list.end() - 1;
         auto minDiff = std::numeric_limits<_Val_Ty>::max();
-        for (auto iter = list.begin(); iter < list.end(); iter++) {
+        for (auto iter = list.begin(); iter < list.end(); ++iter) {
             auto diff = *iter - targetVal;
             if (diff >= 0 && diff < minDiff) {
                 approxIter = iter;
@@ -719,7 +719,7 @@ namespace CU
         }
         auto approxIter = list.begin();
         auto minDiff = std::numeric_limits<_Val_Ty>::max();
-        for (auto iter = list.begin(); iter < list.end(); iter++) {
+        for (auto iter = list.begin(); iter < list.end(); ++iter) {
             auto diff = targetVal - *iter;
             if (diff >= 0 && diff < minDiff) {
                 approxIter = iter;
@@ -736,7 +736,7 @@ namespace CU
             return 0;
         }
         int64_t sum = 0;
-        for (auto iter = list.begin(); iter < list.end(); iter++) {
+        for (auto iter = list.begin(); iter < list.end(); ++iter) {
             sum += *iter;
         }
         return (sum / list.size());
@@ -749,7 +749,7 @@ namespace CU
             return 0;
         }
         int64_t sum = 0;
-        for (auto iter = list.begin(); iter < list.end(); iter++) {
+        for (auto iter = list.begin(); iter < list.end(); ++iter) {
             sum += *iter;
         }
         return sum;
@@ -781,14 +781,14 @@ namespace CU
         }
 
         auto begin_iter = list_copy.end() - 1;
-        for (auto iter = list_copy.begin(); iter < (list_copy.end() - 1); iter++) {
+        for (auto iter = list_copy.begin(); iter < (list_copy.end() - 1); ++iter) {
             if (*iter >= min_val) {
                 begin_iter = iter;
                 break;
             }
         }
         auto end_iter = list_copy.begin();
-        for (auto iter = (list_copy.end() - 1); iter > list_copy.begin(); iter--) {
+        for (auto iter = (list_copy.end() - 1); iter > list_copy.begin(); --iter) {
             if (*iter <= max_val) {
                 end_iter = iter;
                 break;
@@ -812,7 +812,7 @@ namespace CU
             auto target_val = begin_val + target_diff * pos;
             auto select_iter = begin_iter;
             auto min_diff = INT64_MAX;
-            for (auto iter = begin_iter; iter <= end_iter; iter++) {
+            for (auto iter = begin_iter; iter <= end_iter; ++iter) {
                 auto diff = std::abs(static_cast<int64_t>(*iter - target_val));
                 if (diff < min_diff) {
                     select_iter = iter;

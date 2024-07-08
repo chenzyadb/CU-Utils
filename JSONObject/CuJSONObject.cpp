@@ -512,10 +512,10 @@ CU::JSONArray &CU::JSONArray::operator+=(const JSONArray &other)
 	return *this;
 }
 
-CU::JSONItem &CU::JSONArray::operator[](const size_t &pos)
+CU::JSONItem &CU::JSONArray::operator[](size_t pos)
 {
 	if (pos >= data_.size()) {
-		data_.resize(pos + 1);
+		throw JSONExcept("Position out of bounds");
 	}
 	return data_.at(pos);
 }
@@ -608,7 +608,7 @@ std::vector<CU::JSONObject> CU::JSONArray::toListObject() const
 CU::JSONItem CU::JSONArray::at(size_t pos) const
 {
 	if (pos >= data_.size()) {
-		throw JSONExcept("Position out of bound");
+		throw JSONExcept("Position out of bounds");
 	}
 	return data_.at(pos);
 }

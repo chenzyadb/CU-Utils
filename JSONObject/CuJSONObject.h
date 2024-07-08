@@ -357,7 +357,7 @@ namespace CU
 			JSONArray &operator()(const JSONArray &other);
 			JSONArray &operator=(const JSONArray &other);
 			JSONArray &operator+=(const JSONArray &other);
-			JSONItem &operator[](const size_t &pos);
+			JSONItem &operator[](size_t pos);
 			JSONArray operator+(const JSONArray &other) const;
 			bool operator==(const JSONArray &other) const;
 			bool operator!=(const JSONArray &other) const;
