@@ -354,8 +354,8 @@ namespace CU
 			JSONArray(JSONArray &&other) noexcept;
 			~JSONArray();
 			
-			JSONArray &operator()(const JSONArray &other);
 			JSONArray &operator=(const JSONArray &other);
+			JSONArray &operator=(JSONArray &&other) noexcept;
 			JSONArray &operator+=(const JSONArray &other);
 			JSONItem &operator[](size_t pos);
 			JSONArray operator+(const JSONArray &other) const;
@@ -408,6 +408,7 @@ namespace CU
 			~JSONObject();
 
 			JSONObject &operator=(const JSONObject &other);
+			JSONObject &operator=(JSONObject &&other) noexcept;
 			JSONObject &operator+=(const JSONObject &other);
 			JSONItem &operator[](const std::string &key);
 			JSONObject operator+(const JSONObject &other) const;
@@ -442,6 +443,11 @@ namespace CU
 
 			void Parse_Impl_(const char* json_text, bool enable_comments);
 	};
+
+	namespace JSON
+	{
+		void Merge(JSONObject &dst, const JSONObject &src);
+	}
 }
 
 namespace std

@@ -49,14 +49,6 @@
 #define CU_MEMCPY(dst, src, size) memcpy(dst, src, size)
 #endif
 
-#ifndef PAGE_SIZE
-#define PAGE_SIZE 4096
-#endif
-
-#ifndef PATH_MAX
-#define PATH_MAX 4096
-#endif
-
 
 namespace CU
 {
@@ -118,7 +110,7 @@ namespace CU
     StrSplit(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter)
     {
         size_t delimiter_size = 0;
-        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+        for (size_t pos = 0; pos < std::numeric_limits<size_t>::max(); pos++) {
             if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
                 delimiter_size = pos;
                 break;
@@ -194,7 +186,7 @@ namespace CU
     StrSplitAt(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter, int targetCount) 
     {
         size_t delimiter_size = 0;
-        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+        for (size_t pos = 0; pos < std::numeric_limits<size_t>::max(); pos++) {
             if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
                 delimiter_size = pos;
                 break;
@@ -259,7 +251,7 @@ namespace CU
     CU_INLINE std::basic_string<_Char_Ty> SubPrevStr(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter)
     {
         size_t delimiter_size = 0;
-        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+        for (size_t pos = 0; pos < std::numeric_limits<size_t>::max(); pos++) {
             if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
                 delimiter_size = pos;
                 break;
@@ -299,7 +291,7 @@ namespace CU
     CU_INLINE std::basic_string<_Char_Ty> SubRePrevStr(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter)
     {
         size_t delimiter_size = 0;
-        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+        for (size_t pos = 0; pos < std::numeric_limits<size_t>::max(); pos++) {
             if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
                 delimiter_size = pos;
                 break;
@@ -344,7 +336,7 @@ namespace CU
     SubPostStr(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter)
     {
         size_t delimiter_size = 0;
-        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+        for (size_t pos = 0; pos < std::numeric_limits<size_t>::max(); pos++) {
             if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
                 delimiter_size = pos;
                 break;
@@ -393,7 +385,7 @@ namespace CU
     SubRePostStr(const std::basic_string<_Char_Ty> &str, const _Char_Ty* delimiter)
     {
         size_t delimiter_size = 0;
-        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+        for (size_t pos = 0; pos < std::numeric_limits<size_t>::max(); pos++) {
             if (*(delimiter + pos) == static_cast<_Char_Ty>(0)) {
                 delimiter_size = pos;
                 break;
@@ -448,7 +440,7 @@ namespace CU
     CU_INLINE bool StrStartsWith(const std::basic_string<_Char_Ty> &str, const _Char_Ty* key) noexcept
     {
         size_t key_size = 0;
-        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+        for (size_t pos = 0; pos < std::numeric_limits<size_t>::max(); pos++) {
             if (*(key + pos) == static_cast<_Char_Ty>(0)) {
                 key_size = pos;
                 break;
@@ -473,7 +465,7 @@ namespace CU
     CU_INLINE bool StrEndsWith(const std::basic_string<_Char_Ty> &str, const _Char_Ty* key) noexcept
     {
         size_t key_size = 0;
-        for (size_t pos = 0; pos < SIZE_MAX; pos++) {
+        for (size_t pos = 0; pos < std::numeric_limits<size_t>::max(); pos++) {
             if (*(key + pos) == static_cast<_Char_Ty>(0)) {
                 key_size = pos;
                 break;
@@ -488,11 +480,11 @@ namespace CU
     CU_INLINE int StrToInt(const std::string &str) noexcept
     {
         long integer = std::strtol(str.c_str(), nullptr, 10);
-        if (integer > INT_MAX) {
-            return INT_MAX;
+        if (integer > std::numeric_limits<int>::max()) {
+            return std::numeric_limits<int>::max();
         }
-        if (integer < INT_MIN) {
-            return INT_MIN;
+        if (integer < std::numeric_limits<int>::min()) {
+            return std::numeric_limits<int>::min();
         }
         return static_cast<int>(integer);
     }
@@ -500,11 +492,11 @@ namespace CU
     CU_INLINE int StrToInt(const std::wstring &str) noexcept
     {
         long integer = std::wcstol(str.c_str(), nullptr, 10);
-        if (integer > INT_MAX) {
-            return INT_MAX;
+        if (integer > std::numeric_limits<int>::max()) {
+            return std::numeric_limits<int>::max();
         }
-        if (integer < INT_MIN) {
-            return INT_MIN;
+        if (integer < std::numeric_limits<int>::min()) {
+            return std::numeric_limits<int>::min();
         }
         return static_cast<int>(integer);
     }
@@ -729,6 +721,17 @@ namespace CU
         return approxIter;
     }
 
+    template <typename _List_Ty, typename _Val_Ty>
+    CU_INLINE size_t ItemPos(const _List_Ty &list, _Val_Ty targetVal) noexcept
+    {
+        for (size_t pos = 0; pos < list.size(); pos++) {
+            if (*(list.begin() + pos) == targetVal) {
+                return pos;
+            }
+        }
+        return static_cast<size_t>(-1);
+    }
+
     template <typename _List_Ty>
     CU_INLINE int64_t Average(const _List_Ty &list) noexcept
     {
@@ -767,7 +770,11 @@ namespace CU
     }
 
     template <typename _List_Ty>
-    CU_INLINE _List_Ty Trim(const _List_Ty &list, size_t max_size = SIZE_MAX, int64_t min_val = INT64_MIN, int64_t max_val = INT64_MAX)
+    CU_INLINE _List_Ty Trim(
+        const _List_Ty &list, 
+        size_t max_size = std::numeric_limits<size_t>::max(), 
+        int64_t min_val = std::numeric_limits<int64_t>::min(), 
+        int64_t max_val = std::numeric_limits<int64_t>::max())
     {
         if (CU_UNLIKELY(list.size() == 0 || max_size == 0 || min_val > max_val)) {
             return {};
@@ -811,7 +818,7 @@ namespace CU
         for (size_t pos = 0; pos < max_size; pos++) {
             auto target_val = begin_val + target_diff * pos;
             auto select_iter = begin_iter;
-            auto min_diff = INT64_MAX;
+            auto min_diff = std::numeric_limits<int64_t>::max();
             for (auto iter = begin_iter; iter <= end_iter; ++iter) {
                 auto diff = std::abs(static_cast<int64_t>(*iter - target_val));
                 if (diff < min_diff) {
@@ -900,7 +907,7 @@ namespace CU
     CU_INLINE void Pause()
     {
         for (;;) {
-            std::this_thread::sleep_for(std::chrono::seconds(INT64_MAX));
+            std::this_thread::sleep_for(std::chrono::seconds(std::numeric_limits<time_t>::max()));
         }
     }
 }
