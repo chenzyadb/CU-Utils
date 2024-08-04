@@ -1,8 +1,8 @@
 // CuPairList by chenzyadb@github.com
-// Based on C++17 STL (MSVC)
+// Based on C++11 STL (GNUC)
 
-#ifndef _CU_PAIR_LIST_
-#define _CU_PAIR_LIST_
+#if !defined(_CU_PAIR_LIST_)
+#define _CU_PAIR_LIST_ 1
 
 #include <exception>
 #include <vector>
@@ -31,6 +31,8 @@ namespace CU
 	class PairList
 	{
 		public:
+			typedef std::pair<_Ty1, _Ty2> Pair;
+
 			class Iterator
 			{
 				public:
@@ -52,7 +54,18 @@ namespace CU
 						valueIter_(other.valueIter())
 					{ }
 
+					~Iterator() { }
+
 					Iterator &operator=(const Iterator &other)
+					{
+						if (std::addressof(other) != this) {
+							keyIter_ = other.keyIter();
+							valueIter_ = other.valueIter();
+						}
+						return *this;
+					}
+
+					Iterator &operator=(Iterator &&other) noexcept
 					{
 						if (std::addressof(other) != this) {
 							keyIter_ = other.keyIter();
@@ -152,12 +165,10 @@ namespace CU
 						return (keyIter_ <= other.keyIter() && valueIter_ <= other.valueIter());
 					}
 
-					std::pair<_Ty1, _Ty2> operator*() const
+					Pair operator*() const
 					{
 						return std::make_pair(*keyIter_, *valueIter_);
 					}
-
-					std::pair<_Ty1, _Ty2>* operator->() = delete;
 
 					KeyIterator keyIter() const
 					{
@@ -184,8 +195,6 @@ namespace CU
 					ValueIterator valueIter_;
 			};
 
-			typedef std::pair<_Ty1, _Ty2> Pair;
-
 			PairList() : keys_(), values_() { }
 
 			PairList(const std::vector<_Ty1> &keys, const std::vector<_Ty2> &values) :
@@ -199,15 +208,26 @@ namespace CU
 			{ }
 
 			PairList(PairList &&other) noexcept : 
-				keys_(other.keys()), 
-				values_(other.values()) 
+				keys_(other.keys_rv()), 
+				values_(other.values_rv()) 
 			{ }
+
+			~PairList() { }
 
 			PairList &operator=(const PairList &other)
 			{
 				if (std::addressof(other) != this) {
 					keys_ = other.keys();
 					values_ = other.values();
+				}
+				return *this;
+			}
+
+			PairList &operator=(PairList &&other) noexcept
+			{
+				if (std::addressof(other) != this) {
+					keys_ = other.keys_rv();
+					values_ = other.values_rv();
 				}
 				return *this;
 			}
@@ -242,7 +262,7 @@ namespace CU
 				return *(keys_.begin() + (valueIter - values_.begin()));
 			}
 
-			_Ty2 atKey(const _Ty1 &key) const
+			const _Ty2 &atKey(const _Ty1 &key) const
 			{
 				auto keyIter = std::find(keys_.begin(), keys_.end(), key);
 				if (keyIter == keys_.end()) {
@@ -251,7 +271,7 @@ namespace CU
 				return *(values_.begin() + (keyIter - keys_.begin()));
 			}
 
-			_Ty1 atValue(const _Ty2 &value) const
+			const _Ty1 &atValue(const _Ty2 &value) const
 			{
 				auto valueIter = std::find(values_.begin(), values_.end(), value);
 				if (valueIter == values_.end()) {
@@ -343,14 +363,24 @@ namespace CU
 				values_.erase(iter.valueIter());
 			}
 
-			std::vector<_Ty1> keys() const
+			const std::vector<_Ty1> &keys() const
 			{
 				return keys_;
 			}
 
-			std::vector<_Ty2> values() const
+			const std::vector<_Ty2> &values() const
 			{
 				return values_;
+			}
+
+			std::vector<_Ty1> &&keys_rv() 
+			{
+				return std::move(keys_);
+			}
+
+			std::vector<_Ty2> &&values_rv() 
+			{
+				return std::move(values_);
 			}
 
 			void reverse()
@@ -376,4 +406,4 @@ namespace CU
 	};
 }
 
-#endif // _CU_PAIR_LIST_
+#endif // !defined(_CU_PAIR_LIST_)

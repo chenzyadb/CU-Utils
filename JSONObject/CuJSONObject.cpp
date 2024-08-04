@@ -516,14 +516,6 @@ CU::JSONArray &CU::JSONArray::operator+=(const JSONArray &other)
 	return *this;
 }
 
-CU::JSONItem &CU::JSONArray::operator[](size_t pos)
-{
-	if (pos >= data_.size()) {
-		throw JSONExcept("Position out of bounds");
-	}
-	return data_.at(pos);
-}
-
 CU::JSONArray CU::JSONArray::operator+(const JSONArray &other) const
 {
 	auto merged_data = data_;
@@ -546,70 +538,15 @@ bool CU::JSONArray::operator!=(const JSONArray &other) const
 	return (data_ != other.data());
 }
 
-std::vector<bool> CU::JSONArray::toListBoolean() const
+CU::JSONItem &CU::JSONArray::operator[](size_t pos)
 {
-	std::vector<bool> listBoolean{};
-	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
-		listBoolean.emplace_back(iter->toBoolean());
+	if (pos >= data_.size()) {
+		throw JSONExcept("Position out of bounds");
 	}
-	return listBoolean;
+	return data_.at(pos);
 }
 
-std::vector<int> CU::JSONArray::toListInt() const
-{
-	std::vector<int> listInt{};
-	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
-		listInt.emplace_back(iter->toInt());
-	}
-	return listInt;
-}
-
-std::vector<int64_t> CU::JSONArray::toListLong() const
-{
-	std::vector<int64_t> listLong{};
-	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
-		listLong.emplace_back(iter->toLong());
-	}
-	return listLong;
-}
-
-std::vector<double> CU::JSONArray::toListDouble() const
-{
-	std::vector<double> listDouble{};
-	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
-		listDouble.emplace_back(iter->toDouble());
-	}
-	return listDouble;
-}
-
-std::vector<std::string> CU::JSONArray::toListString() const
-{
-	std::vector<std::string> listString{};
-	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
-		listString.emplace_back(iter->toString());
-	}
-	return listString;
-}
-
-std::vector<CU::JSONArray> CU::JSONArray::toListArray() const
-{
-	std::vector<JSONArray> listArray{};
-	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
-		listArray.emplace_back(iter->toArray());
-	}
-	return listArray;
-}
-
-std::vector<CU::JSONObject> CU::JSONArray::toListObject() const
-{
-	std::vector<JSONObject> listObject{};
-	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
-		listObject.emplace_back(iter->toObject());
-	}
-	return listObject;
-}
-
-CU::JSONItem CU::JSONArray::at(size_t pos) const
+const CU::JSONItem &CU::JSONArray::at(size_t pos) const
 {
 	if (pos >= data_.size()) {
 		throw JSONExcept("Position out of bounds");
@@ -676,6 +613,69 @@ const std::vector<CU::JSONItem> &CU::JSONArray::data() const
 std::vector<CU::JSONItem> &&CU::JSONArray::data_rv()
 {
 	return std::move(data_);
+}
+
+std::vector<bool> CU::JSONArray::toListBoolean() const
+{
+	std::vector<bool> listBoolean{};
+	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
+		listBoolean.emplace_back(iter->toBoolean());
+	}
+	return listBoolean;
+}
+
+std::vector<int> CU::JSONArray::toListInt() const
+{
+	std::vector<int> listInt{};
+	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
+		listInt.emplace_back(iter->toInt());
+	}
+	return listInt;
+}
+
+std::vector<int64_t> CU::JSONArray::toListLong() const
+{
+	std::vector<int64_t> listLong{};
+	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
+		listLong.emplace_back(iter->toLong());
+	}
+	return listLong;
+}
+
+std::vector<double> CU::JSONArray::toListDouble() const
+{
+	std::vector<double> listDouble{};
+	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
+		listDouble.emplace_back(iter->toDouble());
+	}
+	return listDouble;
+}
+
+std::vector<std::string> CU::JSONArray::toListString() const
+{
+	std::vector<std::string> listString{};
+	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
+		listString.emplace_back(iter->toString());
+	}
+	return listString;
+}
+
+std::vector<CU::JSONArray> CU::JSONArray::toListArray() const
+{
+	std::vector<JSONArray> listArray{};
+	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
+		listArray.emplace_back(iter->toArray());
+	}
+	return listArray;
+}
+
+std::vector<CU::JSONObject> CU::JSONArray::toListObject() const
+{
+	std::vector<JSONObject> listObject{};
+	for (auto iter = data_.begin(); iter < data_.end(); iter++) {
+		listObject.emplace_back(iter->toObject());
+	}
+	return listObject;
 }
 
 std::string CU::JSONArray::toString() const
@@ -937,14 +937,6 @@ CU::JSONObject &CU::JSONObject::operator+=(const JSONObject &other)
 	return *this;
 }
 
-CU::JSONItem &CU::JSONObject::operator[](const std::string &key)
-{
-	if (data_.count(key) == 0) {
-		order_.emplace_back(key);
-	}
-	return data_[key];
-}
-
 CU::JSONObject CU::JSONObject::operator+(const JSONObject &other) const
 {
 	std::unordered_map<std::string, JSONItem> merged_data(other.data());
@@ -975,7 +967,15 @@ bool CU::JSONObject::contains(const std::string &key) const
 	return (data_.count(key) == 1);
 }
 
-CU::JSONItem CU::JSONObject::at(const std::string &key) const
+CU::JSONItem &CU::JSONObject::operator[](const std::string &key)
+{
+	if (data_.count(key) == 0) {
+		order_.emplace_back(key);
+	}
+	return data_[key];
+}
+
+const CU::JSONItem &CU::JSONObject::at(const std::string &key) const
 {
 	auto iter = data_.find(key);
 	if (iter == data_.end()) {

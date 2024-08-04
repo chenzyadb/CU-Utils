@@ -357,20 +357,12 @@ namespace CU
 			JSONArray &operator=(const JSONArray &other);
 			JSONArray &operator=(JSONArray &&other) noexcept;
 			JSONArray &operator+=(const JSONArray &other);
-			JSONItem &operator[](size_t pos);
 			JSONArray operator+(const JSONArray &other) const;
 			bool operator==(const JSONArray &other) const;
 			bool operator!=(const JSONArray &other) const;
+			JSONItem &operator[](size_t pos);
 
-			std::vector<bool> toListBoolean() const;
-			std::vector<int> toListInt() const;
-			std::vector<int64_t> toListLong() const;
-			std::vector<double> toListDouble() const;
-			std::vector<std::string> toListString() const;
-			std::vector<JSONArray> toListArray() const;
-			std::vector<JSONObject> toListObject() const;
-
-			JSONItem at(size_t pos) const;
+			const JSONItem &at(size_t pos) const;
 			iterator find(const JSONItem &item);
 			void add(const JSONItem &item);
 			void remove(const JSONItem &item);
@@ -381,6 +373,14 @@ namespace CU
 			bool empty() const;
 			const std::vector<JSONItem> &data() const;
 			std::vector<JSONItem> &&data_rv();
+
+			std::vector<bool> toListBoolean() const;
+			std::vector<int> toListInt() const;
+			std::vector<int64_t> toListLong() const;
+			std::vector<double> toListDouble() const;
+			std::vector<std::string> toListString() const;
+			std::vector<JSONArray> toListArray() const;
+			std::vector<JSONObject> toListObject() const;
 			std::string toString() const;
 
 			JSONItem &front();
@@ -410,13 +410,13 @@ namespace CU
 			JSONObject &operator=(const JSONObject &other);
 			JSONObject &operator=(JSONObject &&other) noexcept;
 			JSONObject &operator+=(const JSONObject &other);
-			JSONItem &operator[](const std::string &key);
 			JSONObject operator+(const JSONObject &other) const;
 			bool operator==(const JSONObject &other) const;
 			bool operator!=(const JSONObject &other) const;
+			JSONItem &operator[](const std::string &key);
 			
+			const JSONItem &at(const std::string &key) const;
 			bool contains(const std::string &key) const;
-			JSONItem at(const std::string &key) const;
 			void add(const std::string &key, const JSONItem &value);
 			void remove(const std::string &key);
 			void clear();
