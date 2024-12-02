@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace CU 
@@ -35,54 +36,52 @@ namespace CU
     struct _Format_String
     {
         char stack_buffer[32];
-        char* heap_data;
+        char* heap_block;
         size_t length;
         size_t capacity;
 
-        _Format_String() noexcept : stack_buffer(), heap_data(nullptr), length(0), capacity(sizeof(stack_buffer)) { }
+        _Format_String() noexcept : stack_buffer(), heap_block(nullptr), length(0), capacity(sizeof(stack_buffer)) { }
 
         _Format_String(const _Format_String &other) noexcept :
             stack_buffer(), 
-            heap_data(nullptr), 
+            heap_block(nullptr), 
             length(0), 
             capacity(sizeof(stack_buffer))
         {
             append(other);
         }
         
-        _Format_String(_Format_String &&other) noexcept :
-            stack_buffer(), 
-            heap_data(other.heap_data), 
-            length(other.length), 
-            capacity(other.capacity)
-        { 
-            std::memcpy(stack_buffer, other.stack_buffer, other.length);
-            other.heap_data = nullptr;
-            other.length = 0;
-            other.capacity = sizeof(stack_buffer);
-        }
-        
         _Format_String(const char* src) noexcept : 
             stack_buffer(), 
-            heap_data(nullptr), 
+            heap_block(nullptr), 
             length(0), 
             capacity(sizeof(stack_buffer))
         {
             append(src);
         }
 
+        _Format_String(_Format_String &&other) noexcept :
+            stack_buffer(), 
+            heap_block(other.heap_block), 
+            length(other.length), 
+            capacity(other.capacity)
+        { 
+            std::memcpy(stack_buffer, other.stack_buffer, sizeof(stack_buffer));
+            other.heap_block = nullptr;
+        }
+
         ~_Format_String() noexcept
         {
-            if (heap_data != nullptr) {
-                delete[] heap_data;
+            if (heap_block != nullptr) {
+                std::free(heap_block);
             }
         }
 
         void append(const _Format_String &other) noexcept
         {
             auto new_len = length + other.length;
-            if ((new_len + 1) > capacity) {
-                expand(capacity + new_len);
+            if (new_len >= capacity) {
+                resize(capacity + new_len);
             }
             std::memcpy((data() + length), other.data(), other.length);
             *(data() + new_len) = '\0';
@@ -93,8 +92,8 @@ namespace CU
         {
             auto src_len = std::strlen(src);
             auto new_len = length + src_len;
-            if ((new_len + 1) > capacity) {
-                expand(capacity + new_len);
+            if (new_len >= capacity) {
+                resize(capacity + new_len);
             }
             std::memcpy((data() + length), src, src_len);
             *(data() + new_len) = '\0';
@@ -104,30 +103,36 @@ namespace CU
         void append(char ch) noexcept
         {
             if ((length + 1) >= capacity) {
-                expand(capacity * 2);
+                resize(capacity * 2);
             }
             *(data() + length) = ch;
             *(data() + length + 1) = '\0';
             length++;
         }
 
-        void expand(size_t req_capacity) noexcept
+        void resize(size_t req_capacity) noexcept
         {
-            if (req_capacity < capacity) {
-                return;
+            if (req_capacity < capacity && length >= req_capacity) {
+                shrink(req_capacity - 1);
             }
-            if (heap_data == nullptr && req_capacity > sizeof(stack_buffer)) {
-                heap_data = new char[req_capacity];
-                std::memcpy(heap_data, stack_buffer, length);
-                *(heap_data + length) = '\0';
-            } else if (heap_data != nullptr) {
-                auto new_heap_data = new char[req_capacity];
-                std::memcpy(new_heap_data, heap_data, length);
-                *(new_heap_data + length) = '\0';
-                delete[] heap_data;
-                heap_data = new_heap_data;
+            if (req_capacity > sizeof(stack_buffer)) {
+                auto new_block = reinterpret_cast<char*>(std::realloc(heap_block, req_capacity));
+                if (new_block != nullptr) {
+                    if (heap_block == nullptr) {
+                        std::memcpy(new_block, stack_buffer, length);
+                    }
+                    *(new_block + length) = '\0';
+                    heap_block = new_block;
+                    capacity = req_capacity;
+                }
+            } else {
+                capacity = sizeof(stack_buffer);
+                if (heap_block != nullptr && length > 0) {
+                    std::memcpy(stack_buffer, heap_block, length);
+                    std::free(heap_block);
+                }
+                stack_buffer[length] = '\0';
             }
-            capacity = req_capacity;
         }
 
         void shrink(size_t req_length) noexcept
@@ -140,25 +145,25 @@ namespace CU
 
         char* data() noexcept
         {
-            if (heap_data != nullptr) {
-                return heap_data;
+            if (heap_block != nullptr) {
+                return heap_block;
             }
             return stack_buffer;
         }
 
         const char* data() const noexcept
         {
-            if (heap_data != nullptr) {
-                return heap_data;
+            if (heap_block != nullptr) {
+                return heap_block;
             }
             return stack_buffer;
         }
 
         void clear() noexcept
         {
-            if (heap_data != nullptr) {
-                delete[] heap_data;
-                heap_data = nullptr;
+            if (heap_block != nullptr) {
+                std::free(heap_block);
+                heap_block = nullptr;
             }
             stack_buffer[0] = '\0';
             length = 0;

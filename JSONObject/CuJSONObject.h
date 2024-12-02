@@ -4,6 +4,10 @@
 #if !defined(_CU_JSONOBJECT_)
 #define _CU_JSONOBJECT_ 1
 
+#if defined(_MSC_VER)
+#pragma warning(disable : 4996)
+#endif // defined(_MSC_VER)
+
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -12,6 +16,7 @@
 #include <exception>
 #include <algorithm>
 #include <functional>
+#include <cstdio>
 #include <cstdlib>
 #include <cstdint>
 #include <climits>
@@ -36,15 +41,15 @@ namespace CU
 	struct _JSON_String
 	{
 		char stack_buffer[128];
-		char* heap_data;
+		char* heap_block;
 		size_t length;
 		size_t capacity;
 
-		_JSON_String() noexcept : stack_buffer(), heap_data(nullptr), length(0), capacity(sizeof(stack_buffer)) { }
+		_JSON_String() noexcept : stack_buffer(), heap_block(nullptr), length(0), capacity(sizeof(stack_buffer)) { }
 
 		_JSON_String(const _JSON_String &other) noexcept :
 			stack_buffer(),
-			heap_data(nullptr),
+			heap_block(nullptr),
 			length(0),
 			capacity(sizeof(stack_buffer))
 		{
@@ -53,19 +58,17 @@ namespace CU
 
 		_JSON_String(_JSON_String &&other) noexcept :
 			stack_buffer(),
-			heap_data(other.heap_data),
+			heap_block(other.heap_block),
 			length(other.length),
 			capacity(other.capacity)
 		{
-			std::memcpy(stack_buffer, other.stack_buffer, other.length);
-			other.heap_data = nullptr;
-			other.length = 0;
-			other.capacity = sizeof(stack_buffer);
+			std::memcpy(stack_buffer, other.stack_buffer, sizeof(stack_buffer));
+			other.heap_block = nullptr;
 		}
 
 		_JSON_String(const char* src) noexcept :
 			stack_buffer(),
-			heap_data(nullptr),
+			heap_block(nullptr),
 			length(0),
 			capacity(sizeof(stack_buffer))
 		{
@@ -74,16 +77,16 @@ namespace CU
 
 		~_JSON_String() noexcept
 		{
-			if (heap_data != nullptr) {
-				delete[] heap_data;
+			if (heap_block != nullptr) {
+				std::free(heap_block);
 			}
 		}
 
 		void append(const _JSON_String &other) noexcept
 		{
 			auto new_len = length + other.length;
-			if ((new_len + 1) > capacity) {
-				expand(capacity + new_len);
+			if (new_len >= capacity) {
+				resize(capacity + new_len);
 			}
 			std::memcpy((data() + length), other.data(), other.length);
 			*(data() + new_len) = '\0';
@@ -94,8 +97,8 @@ namespace CU
 		{
 			auto src_len = std::strlen(src);
 			auto new_len = length + src_len;
-			if ((new_len + 1) > capacity) {
-				expand(capacity + new_len);
+			if (new_len >= capacity) {
+				resize(capacity + new_len);
 			}
 			std::memcpy((data() + length), src, src_len);
 			*(data() + new_len) = '\0';
@@ -105,46 +108,36 @@ namespace CU
 		void append(char ch) noexcept
 		{
 			if ((length + 1) >= capacity) {
-				expand(capacity * 2);
+				resize(capacity * 2);
 			}
 			*(data() + length) = ch;
 			*(data() + length + 1) = '\0';
 			length++;
 		}
 
-		bool equals(const _JSON_String &text) const noexcept
+		void resize(size_t req_capacity) noexcept
 		{
-			if (text.length != length) {
-				return false;
+			if (req_capacity < capacity && length >= req_capacity) {
+				shrink(req_capacity - 1);
 			}
-			return (std::memcmp(data(), text.data(), length) == 0);
-		}
-
-		bool equals(const char* text) const noexcept
-		{
-			if (std::strlen(text) != length) {
-				return false;
+			if (req_capacity > sizeof(stack_buffer)) {
+				auto new_block = reinterpret_cast<char*>(std::realloc(heap_block, req_capacity));
+				if (new_block != nullptr) {
+					if (heap_block == nullptr) {
+						std::memcpy(new_block, stack_buffer, length);
+					}
+					*(new_block + length) = '\0';
+					heap_block = new_block;
+					capacity = req_capacity;
+				}
+			} else {
+				capacity = sizeof(stack_buffer);
+				if (heap_block != nullptr && length > 0) {
+					std::memcpy(stack_buffer, heap_block, length);
+					std::free(heap_block);
+				}
+				stack_buffer[length] = '\0';
 			}
-			return (std::memcmp(data(), text, length) == 0);
-		}
-
-		void expand(size_t req_capacity) noexcept
-		{
-			if (req_capacity < capacity) {
-				return;
-			}
-			if (heap_data == nullptr && req_capacity > sizeof(stack_buffer)) {
-				heap_data = new char[req_capacity];
-				std::memcpy(heap_data, stack_buffer, length);
-				*(heap_data + length) = '\0';
-			} else if (heap_data != nullptr) {
-				auto new_heap_data = new char[req_capacity];
-				std::memcpy(new_heap_data, heap_data, length);
-				*(new_heap_data + length) = '\0';
-				delete[] heap_data;
-				heap_data = new_heap_data;
-			}
-			capacity = req_capacity;
 		}
 
 		void shrink(size_t req_length) noexcept
@@ -155,27 +148,35 @@ namespace CU
 			}
 		}
 
+		bool equals(const char* str) const noexcept
+		{
+			if (std::strlen(str) != length) {
+				return false;
+			}
+			return (std::memcmp(data(), str, length) == 0);
+		}
+
 		char* data() noexcept
 		{
-			if (heap_data != nullptr) {
-				return heap_data;
+			if (heap_block != nullptr) {
+				return heap_block;
 			}
 			return stack_buffer;
 		}
 
 		const char* data() const noexcept
 		{
-			if (heap_data != nullptr) {
-				return heap_data;
+			if (heap_block != nullptr) {
+				return heap_block;
 			}
 			return stack_buffer;
 		}
 
 		void clear() noexcept
 		{
-			if (heap_data != nullptr) {
-				delete[] heap_data;
-				heap_data = nullptr;
+			if (heap_block != nullptr) {
+				std::free(heap_block);
+				heap_block = nullptr;
 			}
 			stack_buffer[0] = '\0';
 			length = 0;
@@ -446,7 +447,112 @@ namespace CU
 
 	namespace JSON
 	{
-		void Merge(JSONObject &dst, const JSONObject &src);
+		JSONObject &Merge(JSONObject &dst, const JSONObject &src);
+	}
+
+	namespace JSONBinary
+	{
+		typedef uint32_t pos_t;
+		typedef int8_t byte_t;
+
+		constexpr pos_t npos = static_cast<pos_t>(-1);
+
+		inline void* _Move_Ptr(void* ptr, pos_t pos) noexcept
+		{
+			return reinterpret_cast<void*>(reinterpret_cast<byte_t*>(ptr) + pos);
+		}
+
+		inline const void* _Move_Ptr(const void* ptr, pos_t pos) noexcept
+		{
+			return reinterpret_cast<const void*>(reinterpret_cast<const byte_t*>(ptr) + pos);
+		}
+
+		class _Binary_Container
+		{
+			public:
+				_Binary_Container() noexcept : 
+					block_(reinterpret_cast<byte_t*>(std::malloc(128))), 
+					capacity_(128), 
+					size_(0)
+				{ }
+
+				~_Binary_Container() noexcept
+				{
+					if (block_ != nullptr) {
+						std::free(block_);
+					}
+				}
+
+				void resize(pos_t req_capacity) noexcept
+				{
+					auto new_block = reinterpret_cast<byte_t*>(std::realloc(block_, req_capacity));
+					if (new_block != nullptr) {
+						block_ = new_block;
+						capacity_ = req_capacity;
+					}
+					if (size_ > capacity_) {
+						size_ = capacity_;
+					}
+				}
+
+				void add(const void* data, pos_t data_size) noexcept
+				{
+					if ((size_ + data_size) > capacity_) {
+						resize(size_ * 2 + data_size);
+					}
+					auto dst = _Move_Ptr(block_, size_);
+					if (dst != nullptr && data != nullptr) {
+						std::memcpy(dst, data, data_size);
+						size_ += data_size;
+					}
+				}
+
+				byte_t* data() noexcept
+				{
+					return block_;
+				}
+
+				byte_t* dump() noexcept
+				{
+					auto dump_data = block_;
+					block_ = nullptr;
+					capacity_ = 0;
+					size_ = 0;
+					return dump_data;
+				}
+
+				pos_t size() const noexcept
+				{
+					return size_;
+				}
+
+			private:
+				byte_t* block_;
+				pos_t capacity_;
+				pos_t size_;
+		};
+
+		inline pos_t GetBinarySize(const byte_t* binary) noexcept
+		{
+			return *reinterpret_cast<const pos_t*>(binary);
+		}
+
+		inline void DeleteBinary(byte_t* binary) noexcept
+		{
+			if (binary != nullptr) {
+				std::free(binary);
+			}
+		}
+
+		byte_t* ArrayToBinary(const JSONArray &array);
+		JSONArray BinaryToArray(const byte_t* binary);
+		void SaveArray(const std::string &path, const JSONArray &array);
+		JSONArray OpenArray(const std::string &path);
+
+		byte_t* ObjectToBinary(const JSONObject &object);
+		JSONObject BinaryToObject(const byte_t* binary);
+		void SaveObject(const std::string &path, const JSONObject &object);
+		JSONObject OpenObject(const std::string &path);
 	}
 }
 

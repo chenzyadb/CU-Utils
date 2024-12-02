@@ -42,31 +42,19 @@ CU::JSONItem::JSONItem(const _JSON_String &raw) : type_(), value_()
 		case '7':
 		case '8':
 		case '9':
-			{
-				auto num = std::strtod(raw_data, nullptr);
-				if (num != 0) {
-					if (num == static_cast<int64_t>(num)) {
-						if (num > static_cast<double>(INT_MAX) || num < static_cast<double>(INT_MIN)) {
-							type_ = ItemType::LONG;
-							value_ = static_cast<int64_t>(num);
-							return;
-						} else {
-							type_ = ItemType::INTEGER;
-							value_ = static_cast<int>(num);
-							return;
-						}
-					} else {
-						type_ = ItemType::DOUBLE;
-						value_ = num;
-						return;
-					}
-				} else if (raw.equals("0")) {
-					type_ = ItemType::INTEGER;
-					value_ = 0;
+			if (_JSON_Misc::FindChar(raw_data, '.') != _JSON_Misc::npos) {
+				type_ = ItemType::DOUBLE;
+				value_ = std::strtod(raw_data, nullptr);
+				return;
+			} else {
+				auto num = std::strtoll(raw_data, nullptr, 10);
+				if (num > std::numeric_limits<int>::max() || num < std::numeric_limits<int>::min()) {
+					type_ = ItemType::LONG;
+					value_ = static_cast<int64_t>(num);
 					return;
-				} else if (raw.equals("0.0")) {
-					type_ = ItemType::DOUBLE;
-					value_ = 0.0;
+				} else {
+					type_ = ItemType::INTEGER;
+					value_ = static_cast<int>(num);
 					return;
 				}
 			}
@@ -1108,11 +1096,10 @@ std::string CU::JSONObject::toFormatedString() const
 std::vector<CU::JSONObject::JSONPair> CU::JSONObject::toPairs() const
 {
 	std::vector<JSONPair> pairs{};
-	for (const auto &key : order_) {
-		JSONPair pair{};
-		pair.key = key;
-		pair.value = data_.at(key);
-		pairs.emplace_back(pair);
+	pairs.resize(order_.size());
+	for (size_t pos = 0; pos < pairs.size(); pos++) {
+		pairs[pos].key = order_[pos];
+		pairs[pos].value = data_.at(pairs[pos].key);
 	}
 	return pairs;
 }
@@ -1311,20 +1298,399 @@ void CU::JSONObject::Parse_Impl_(const char* json_text, bool enable_comments)
 	}
 }
 
-void CU::JSON::Merge(JSONObject &dst, const JSONObject &src)
+CU::JSONObject &CU::JSON::Merge(JSONObject &dst, const JSONObject &src)
 {
-	auto pairs = src.toPairs();
-	for (const auto &pair : pairs) {
-		if (dst.contains(pair.key)) {
-			if (!pair.value.isObject()) {
-				dst[pair.key] = pair.value;
+	for (const auto &key : src.order()) {
+		const auto &value = src.at(key);
+		if (dst.contains(key)) {
+			if (!value.isObject()) {
+				dst[key] = value;
 			} else {
-				JSONObject object(dst.at(pair.key).toObject());
-				Merge(object, pair.value.toObject());
-				dst[pair.key] = object;
+				JSONObject object(dst.at(key).toObject());
+				Merge(object, value.toObject());
+				dst[key] = object;
 			}
 		} else {
-			dst.add(pair.key, pair.value);
+			dst.add(key, value);
 		}
 	}
+	return dst;
+}
+
+CU::JSONBinary::byte_t* CU::JSONBinary::ArrayToBinary(const JSONArray &array)
+{
+	static const auto addBlock = [](_Binary_Container &container, const JSONItem &item) {
+		switch (item.type()) {
+			case JSONItem::ItemType::ITEM_NULL:
+				{
+					auto type = JSONItem::ItemType::ITEM_NULL;
+					pos_t block_size = sizeof(type) + sizeof(pos_t);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+				}
+				break;
+			case JSONItem::ItemType::BOOLEAN:
+				{
+					auto data = item.toBoolean();
+					auto type = JSONItem::ItemType::BOOLEAN;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + sizeof(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(std::addressof(data), sizeof(data));
+				}
+				break;
+			case JSONItem::ItemType::INTEGER:
+				{
+					auto data = item.toInt();
+					auto type = JSONItem::ItemType::INTEGER;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + sizeof(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(std::addressof(data), sizeof(data));
+				}
+				break;
+			case JSONItem::ItemType::LONG:
+				{
+					auto data = item.toLong();
+					auto type = JSONItem::ItemType::LONG;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + sizeof(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(std::addressof(data), sizeof(data));
+				}
+				break;
+			case JSONItem::ItemType::DOUBLE:
+				{
+					auto data = item.toDouble();
+					auto type = JSONItem::ItemType::DOUBLE;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + sizeof(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(std::addressof(data), sizeof(data));
+				}
+				break;
+			case JSONItem::ItemType::STRING:
+				{
+					auto data = item.toString();
+					auto type = JSONItem::ItemType::STRING;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + data.length() + 1;
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(data.data(), (data.length() + 1));
+				}
+				break;
+			case JSONItem::ItemType::ARRAY:
+				{
+					auto data = ArrayToBinary(item.toArray());
+					auto type = JSONItem::ItemType::ARRAY;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + GetBinarySize(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(data, GetBinarySize(data));
+					DeleteBinary(data);
+				}
+				break;
+			case JSONItem::ItemType::OBJECT:
+				{
+					auto data = ObjectToBinary(item.toObject());
+					auto type = JSONItem::ItemType::OBJECT;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + GetBinarySize(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(data, GetBinarySize(data));
+					DeleteBinary(data);
+				}
+				break;
+			default:
+				break;
+		}
+	};
+
+	// Array Binary Structure: [binary_size][[block_size][type][data]]...[end_block]
+	_Binary_Container container{};
+	{
+		pos_t binary_size = sizeof(pos_t);
+		container.add(std::addressof(binary_size), sizeof(binary_size));
+	}
+	for (const auto &item : array) {
+		addBlock(container, item);
+	}
+	container.add(std::addressof(npos), sizeof(npos));
+	*reinterpret_cast<pos_t*>(container.data()) = container.size();
+	return container.dump();
+}
+
+CU::JSONArray CU::JSONBinary::BinaryToArray(const byte_t* binary)
+{
+	static const auto addItem = [](JSONArray &array, const byte_t* binary, pos_t block_offset) -> pos_t {
+		auto block_size = *reinterpret_cast<const pos_t*>(_Move_Ptr(binary, block_offset));
+		if (block_size == npos) {
+			return npos;
+		}
+		auto type = *reinterpret_cast<const JSONItem::ItemType*>(_Move_Ptr(binary, (block_offset + sizeof(block_size))));
+		auto data = _Move_Ptr(binary, (block_offset + sizeof(block_size) + sizeof(type)));
+		switch (type) {
+			case JSONItem::ItemType::ITEM_NULL:
+				array.add(nullptr);
+				break;
+			case JSONItem::ItemType::BOOLEAN:
+				array.add(*reinterpret_cast<const bool*>(data));
+				break;
+			case JSONItem::ItemType::INTEGER:
+				array.add(*reinterpret_cast<const int*>(data));
+				break;
+			case JSONItem::ItemType::LONG:
+				array.add(*reinterpret_cast<const int64_t*>(data));
+				break;
+			case JSONItem::ItemType::DOUBLE:
+				array.add(*reinterpret_cast<const double*>(data));
+				break;
+			case JSONItem::ItemType::STRING:
+				array.add(reinterpret_cast<const char*>(data));
+				break;
+			case JSONItem::ItemType::ARRAY:
+				array.add(BinaryToArray(reinterpret_cast<const byte_t*>(data)));
+				break;
+			case JSONItem::ItemType::OBJECT:
+				array.add(BinaryToObject(reinterpret_cast<const byte_t*>(data)));
+				break;
+			default:
+				break;
+		}
+		return (block_offset + block_size);
+	};
+
+	JSONArray array{};
+	pos_t size = GetBinarySize(binary), offset = sizeof(pos_t);
+	while (offset < size) {
+		offset = addItem(array, binary, offset);
+	}
+	return array;
+}
+
+void CU::JSONBinary::SaveArray(const std::string &path, const JSONArray &array)
+{
+	auto fp = std::fopen(path.c_str(), "wb");
+	if (fp != nullptr) {
+		auto binary = ArrayToBinary(array);
+		if (binary != nullptr) {
+			std::fwrite(binary, sizeof(byte_t), GetBinarySize(binary), fp);
+			std::fflush(fp);
+			DeleteBinary(binary);
+		}
+		std::fclose(fp);
+	}
+}
+
+CU::JSONArray CU::JSONBinary::OpenArray(const std::string &path)
+{
+	CU::JSONArray array{};
+	auto fp = std::fopen(path.c_str(), "rb");
+	if (fp != nullptr) {
+		pos_t binary_size = 0;
+		std::fread(std::addressof(binary_size), sizeof(binary_size), 1, fp);
+		auto buffer = reinterpret_cast<byte_t*>(std::malloc(binary_size));
+		if (buffer != nullptr) {
+			std::rewind(fp);
+			std::fread(buffer, sizeof(byte_t), binary_size, fp);
+			array = BinaryToArray(buffer);
+			DeleteBinary(buffer);
+		}
+		std::fclose(fp);
+	}
+	return array;
+}
+
+CU::JSONBinary::byte_t* CU::JSONBinary::ObjectToBinary(const JSONObject &object)
+{
+	static const auto addBlock = [](_Binary_Container &container, const std::string &key, const JSONItem &item) {
+		switch (item.type()) {
+			case JSONItem::ItemType::ITEM_NULL:
+				{
+					auto type = JSONItem::ItemType::ITEM_NULL;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + key.length() + 1;
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(key.data(), (key.length() + 1));
+				}
+				break;
+			case JSONItem::ItemType::BOOLEAN:
+				{
+					auto data = item.toBoolean();
+					auto type = JSONItem::ItemType::BOOLEAN;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + key.length() + 1 + sizeof(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(key.data(), (key.length() + 1));
+					container.add(std::addressof(data), sizeof(data));
+				}
+				break;
+			case JSONItem::ItemType::INTEGER:
+				{
+					auto data = item.toInt();
+					auto type = JSONItem::ItemType::INTEGER;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + key.length() + 1 + sizeof(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(key.data(), (key.length() + 1));
+					container.add(std::addressof(data), sizeof(data));
+				}
+				break;
+			case JSONItem::ItemType::LONG:
+				{
+					auto data = item.toLong();
+					auto type = JSONItem::ItemType::LONG;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + key.length() + 1 + sizeof(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(key.data(), (key.length() + 1));
+					container.add(std::addressof(data), sizeof(data));
+				}
+				break;
+			case JSONItem::ItemType::DOUBLE:
+				{
+					auto data = item.toDouble();
+					auto type = JSONItem::ItemType::DOUBLE;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + key.length() + 1 + sizeof(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(key.data(), (key.length() + 1));
+					container.add(std::addressof(data), sizeof(data));
+				}
+				break;
+			case JSONItem::ItemType::STRING:
+				{
+					auto data = item.toString();
+					auto type = JSONItem::ItemType::STRING;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + key.length() + 1 + data.length() + 1;
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(key.data(), (key.length() + 1));
+					container.add(data.data(), (data.length() + 1));
+				}
+				break;
+			case JSONItem::ItemType::ARRAY:
+				{
+					auto data = ArrayToBinary(item.toArray());
+					auto type = JSONItem::ItemType::ARRAY;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + key.length() + 1 + GetBinarySize(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(key.data(), (key.length() + 1));
+					container.add(data, GetBinarySize(data));
+					DeleteBinary(data);
+				}
+				break;
+			case JSONItem::ItemType::OBJECT:
+				{
+					auto data = ObjectToBinary(item.toObject());
+					auto type = JSONItem::ItemType::OBJECT;
+					pos_t block_size = sizeof(type) + sizeof(pos_t) + key.length() + 1 + GetBinarySize(data);
+					container.add(std::addressof(block_size), sizeof(block_size));
+					container.add(std::addressof(type), sizeof(type));
+					container.add(key.data(), (key.length() + 1));
+					container.add(data, GetBinarySize(data));
+					DeleteBinary(data);
+				}
+				break;
+			default:
+				break;
+		}
+	};
+	
+	// Object Binary Structure: [binary_size][[block_size][type][key][data]]...[end_block]
+	_Binary_Container container{};
+	{
+		pos_t binary_size = sizeof(pos_t);
+		container.add(std::addressof(binary_size), sizeof(binary_size));
+	}
+	for (const auto &key : object.order()) {
+		addBlock(container, key, object.at(key));
+	}
+	container.add(std::addressof(npos), sizeof(npos));
+	*reinterpret_cast<pos_t*>(container.data()) = container.size();
+	return container.dump();
+}
+
+CU::JSONObject CU::JSONBinary::BinaryToObject(const byte_t* binary)
+{
+	static const auto addItem = [](JSONObject &object, const byte_t* binary, pos_t block_offset) -> pos_t {
+		auto block_size = *reinterpret_cast<const pos_t*>(_Move_Ptr(binary, block_offset));
+		if (block_size == npos) {
+			return npos;
+		}
+		auto type = *reinterpret_cast<const JSONItem::ItemType*>(_Move_Ptr(binary, (block_offset + sizeof(block_size))));
+		auto key = reinterpret_cast<const char*>(_Move_Ptr(binary, (block_offset + sizeof(block_size) + sizeof(type))));
+		auto key_size = std::strlen(key) + 1;
+		auto data = _Move_Ptr(binary, (block_offset + sizeof(block_size) + sizeof(type) + key_size));
+		switch (type) {
+			case JSONItem::ItemType::ITEM_NULL:
+				object.add(key, nullptr);
+				break;
+			case JSONItem::ItemType::BOOLEAN:
+				object.add(key, *reinterpret_cast<const bool*>(data));
+				break;
+			case JSONItem::ItemType::INTEGER:
+				object.add(key, *reinterpret_cast<const int*>(data));
+				break;
+			case JSONItem::ItemType::LONG:
+				object.add(key, *reinterpret_cast<const int64_t*>(data));
+				break;
+			case JSONItem::ItemType::DOUBLE:
+				object.add(key, *reinterpret_cast<const double*>(data));
+				break;
+			case JSONItem::ItemType::STRING:
+				object.add(key, reinterpret_cast<const char*>(data));
+				break;
+			case JSONItem::ItemType::ARRAY:
+				object.add(key, BinaryToArray(reinterpret_cast<const byte_t*>(data)));
+				break;
+			case JSONItem::ItemType::OBJECT:
+				object.add(key, BinaryToObject(reinterpret_cast<const byte_t*>(data)));
+				break;
+			default:
+				break;
+		}
+		return (block_offset + block_size);
+	};
+
+	JSONObject object{};
+	pos_t size = GetBinarySize(binary), offset = sizeof(pos_t);
+	while (offset < size) {
+		offset = addItem(object, binary, offset);
+	}
+	return object;
+}
+
+void CU::JSONBinary::SaveObject(const std::string &path, const JSONObject &object)
+{
+	auto fp = std::fopen(path.c_str(), "wb");
+	if (fp != nullptr) {
+		auto binary = ObjectToBinary(object);
+		if (binary != nullptr) {
+			std::fwrite(binary, sizeof(byte_t), GetBinarySize(binary), fp);
+			std::fflush(fp);
+			DeleteBinary(binary);
+		}
+		std::fclose(fp);
+	}
+}
+
+CU::JSONObject CU::JSONBinary::OpenObject(const std::string &path)
+{
+	CU::JSONObject object{};
+	auto fp = std::fopen(path.c_str(), "rb");
+	if (fp != nullptr) {
+		pos_t binary_size = 0;
+		std::fread(std::addressof(binary_size), sizeof(binary_size), 1, fp);
+		auto buffer = reinterpret_cast<byte_t*>(std::malloc(binary_size));
+		if (buffer != nullptr) {
+			std::rewind(fp);
+			std::fread(buffer, sizeof(byte_t), binary_size, fp);
+			object = BinaryToObject(buffer);
+			DeleteBinary(buffer);
+		}
+		std::fclose(fp);
+	}
+	return object;
 }

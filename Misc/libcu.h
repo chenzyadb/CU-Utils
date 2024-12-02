@@ -844,7 +844,7 @@ namespace CU
     {
         static constexpr char complieDate[] = __DATE__;
     
-        char month[4] = { 0 };
+        char month[4]{};
         int year = 0;
         int day = 0;
         (void)std::sscanf(complieDate, "%s %d %d", month, &day, &year);
