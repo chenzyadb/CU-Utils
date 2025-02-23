@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <memory>
 #include <functional>
+#include <algorithm>
 #include <cstring>
 
 namespace CU
@@ -33,9 +34,9 @@ namespace CU
 		public:
 			enum class MatchIndex : uint8_t {FRONT, MIDDLE, BACK, ENTIRE};
 
-			StringMatcher() : matchRule_(), matchAll_(false) { }
+			StringMatcher() : matchRules_(), matchAll_(false) { }
 
-			StringMatcher(const std::string &ruleText) : matchRule_(), matchAll_(false)
+			StringMatcher(const std::string &ruleText) : matchRules_(), matchAll_(false)
 			{
 				if (ruleText.size() == 0) {
 					return;
@@ -101,18 +102,18 @@ namespace CU
 							break;
 					}
 					if (idx == RuleIdx::RULE_BACK || pos == (ruleText.size() - 1)) {
-						auto rules = ParseRuleContent_(ruleContent);
+						auto rules = parseRuleContent_(ruleContent);
 						if (matchFront && matchBack) {
-							auto &entire = matchRule_[MatchIndex::ENTIRE];
+							auto &entire = matchRules_[MatchIndex::ENTIRE];
 							entire.insert(entire.end(), rules.begin(), rules.end());
 						} else if (matchFront && !matchBack) {
-							auto &front = matchRule_[MatchIndex::FRONT];
+							auto &front = matchRules_[MatchIndex::FRONT];
 							front.insert(front.end(), rules.begin(), rules.end());
 						} else if (!matchFront && matchBack) {
-							auto &back = matchRule_[MatchIndex::BACK];
+							auto &back = matchRules_[MatchIndex::BACK];
 							back.insert(back.end(), rules.begin(), rules.end());
 						} else {
-							auto &middle = matchRule_[MatchIndex::MIDDLE];
+							auto &middle = matchRules_[MatchIndex::MIDDLE];
 							middle.insert(middle.end(), rules.begin(), rules.end());
 						}
 						matchFront = true, matchBack = true;
@@ -124,12 +125,12 @@ namespace CU
 			}
 
 			StringMatcher(const StringMatcher &other) : 
-				matchRule_(other._Get_MatchRule()),
+				matchRules_(other._Get_MatchRules()),
 				matchAll_(other._Is_MatchAll())
 			{ }
 
 			StringMatcher(StringMatcher &&other) noexcept : 
-				matchRule_(other._Get_MatchRule()),
+				matchRules_(other._Get_MatchRules()),
 				matchAll_(other._Is_MatchAll())
 			{ }
 
@@ -138,7 +139,7 @@ namespace CU
 			StringMatcher &operator=(const StringMatcher &other)
 			{
 				if (std::addressof(other) != this) {
-					matchRule_ = other._Get_MatchRule();
+					matchRules_ = other._Get_MatchRules();
 					matchAll_ = other._Is_MatchAll();
 				}
 				return *this;
@@ -146,29 +147,34 @@ namespace CU
 
 			bool operator==(const StringMatcher &other) const
 			{
-				return (matchAll_ == other._Is_MatchAll() && matchRule_ == other._Get_MatchRule());
+				return (matchAll_ == other._Is_MatchAll() && matchRules_ == other._Get_MatchRules());
 			}
 
 			bool operator!=(const StringMatcher &other) const
 			{
-				return (matchAll_ != other._Is_MatchAll() || matchRule_ != other._Get_MatchRule());
+				return (matchAll_ != other._Is_MatchAll() || matchRules_ != other._Get_MatchRules());
 			}
 
-			bool match(const std::string &str) const
+			bool match(const std::string &str, bool enableHotspotOpt = false) const
 			{
 				static const auto matchFront = [](const std::string &s, const std::string &p) -> bool {
 					size_t len = p.size();
 					if (s.size() < len) {
 						return false;
 					}
-					return (memcmp(s.data(), p.data(), len) == 0);
+					return (std::memcmp(s.data(), p.data(), len) == 0);
 				};
 				static const auto matchBack = [](const std::string &s, const std::string &p) -> bool {
 					size_t s_len = s.size(), p_len = p.size();
 					if (s_len < p_len) {
 						return false;
 					}
-					return (memcmp((s.data() + (s_len - p_len)), p.data(), p_len) == 0);
+					return (std::memcmp((s.data() + (s_len - p_len)), p.data(), p_len) == 0);
+				};
+				const auto countHotspot = [this, enableHotspotOpt](MatchIndex idx, const std::string &word) {
+					if (enableHotspotOpt) {
+						hotspotCounters_[idx][word]++;
+					}
 				};
 
 				if (matchAll_) {
@@ -177,34 +183,38 @@ namespace CU
 				if (str.empty()) {
 					return false;
 				}
-				if (matchRule_.count(MatchIndex::FRONT) == 1) {
-					const auto &front = matchRule_.at(MatchIndex::FRONT);
-					for (const auto &key : front) {
-						if (matchFront(str, key)) {
+				if (matchRules_.count(MatchIndex::FRONT) == 1) {
+					const auto &front = matchRules_.at(MatchIndex::FRONT);
+					for (const auto &word : front) {
+						if (matchFront(str, word)) {
+							countHotspot(MatchIndex::FRONT, word);
 							return true;
 						}
 					}
 				}
-				if (matchRule_.count(MatchIndex::BACK) == 1) {
-					const auto &back = matchRule_.at(MatchIndex::BACK);
-					for (const auto &key : back) {
-						if (matchBack(str, key)) {
+				if (matchRules_.count(MatchIndex::BACK) == 1) {
+					const auto &back = matchRules_.at(MatchIndex::BACK);
+					for (const auto &word : back) {
+						if (matchBack(str, word)) {
+							countHotspot(MatchIndex::BACK, word);
 							return true;
 						}
 					}
 				}
-				if (matchRule_.count(MatchIndex::ENTIRE) == 1) {
-					const auto &entire = matchRule_.at(MatchIndex::ENTIRE);
-					for (const auto &key : entire) {
-						if (str == key) {
+				if (matchRules_.count(MatchIndex::ENTIRE) == 1) {
+					const auto &entire = matchRules_.at(MatchIndex::ENTIRE);
+					for (const auto &word : entire) {
+						if (str == word) {
+							countHotspot(MatchIndex::ENTIRE, word);
 							return true;
 						}
 					}
 				}
-				if (matchRule_.count(MatchIndex::MIDDLE) == 1) {
-					const auto &middle = matchRule_.at(MatchIndex::MIDDLE);
-					for (const auto &key : middle) {
-						if (str.find(key) != std::string::npos) {
+				if (matchRules_.count(MatchIndex::MIDDLE) == 1) {
+					const auto &middle = matchRules_.at(MatchIndex::MIDDLE);
+					for (const auto &word : middle) {
+						if (str.find(word) != std::string::npos) {
+							countHotspot(MatchIndex::MIDDLE, word);
 							return true;
 						}
 					}
@@ -212,9 +222,20 @@ namespace CU
 				return false;
 			}
 
-			std::unordered_map<MatchIndex, std::vector<std::string>> _Get_MatchRule() const
+			void hotspotOpt(bool ignoreUnusedWords = true)
 			{
-				return matchRule_;
+				static const auto indexs = {MatchIndex::FRONT, MatchIndex::MIDDLE, MatchIndex::BACK, MatchIndex::ENTIRE};
+				for (auto index : indexs) {
+					if (hotspotCounters_.count(index) == 1) {
+						matchRules_[index] = 
+							hotspotOpt_Impl_(hotspotCounters_.at(index), matchRules_.at(index), ignoreUnusedWords);
+					}
+				}
+			}
+
+			std::unordered_map<MatchIndex, std::vector<std::string>> _Get_MatchRules() const
+			{
+				return matchRules_;
 			}
 
 			bool _Is_MatchAll() const
@@ -223,10 +244,13 @@ namespace CU
 			}
 
 		private:
-			std::unordered_map<MatchIndex, std::vector<std::string>> matchRule_;
+			typedef std::unordered_map<std::string, size_t> HotspotCounter; 
+
+			std::unordered_map<MatchIndex, std::vector<std::string>> matchRules_;
+			mutable std::unordered_map<MatchIndex, HotspotCounter> hotspotCounters_;
 			bool matchAll_;
 
-			static std::vector<std::string> ParseRuleContent_(const std::string &content)
+			static std::vector<std::string> parseRuleContent_(const std::string &content)
 			{
 				std::vector<std::string> rules{};
 				size_t pos = 0, len = content.size();
@@ -237,7 +261,7 @@ namespace CU
 					}
 					auto rule = content.substr(pos, next_pos - pos);
 					if (rule.find('[') != std::string::npos && rule.find(']') != std::string::npos) {
-						auto parsedRules = ParseCharsets_(rule);
+						auto parsedRules = parseCharsets_(rule);
 						rules.insert(rules.end(), parsedRules.begin(), parsedRules.end());
 					} else {
 						rules.emplace_back(rule);
@@ -247,7 +271,7 @@ namespace CU
 				return rules;
 			}
 
-			static std::vector<std::string> ParseCharsets_(const std::string &str)
+			static std::vector<std::string> parseCharsets_(const std::string &str)
 			{
 				std::vector<std::string> parsedRules{};
 				parsedRules.emplace_back(str);
@@ -259,7 +283,7 @@ namespace CU
 					}
 					auto set_end = parsedRules[0].find(']', set_begin + 1);
 					if (set_end != std::string::npos) {
-						auto charSet = GetCharset_(parsedRules[0].substr(set_begin + 1, set_end - set_begin - 1));
+						auto charSet = getCharset_(parsedRules[0].substr(set_begin + 1, set_end - set_begin - 1));
 						std::vector<std::string> expandedRules{};
 						for (const auto &rule : parsedRules) {
 							auto frontStr = rule.substr(0, set_begin);
@@ -277,7 +301,7 @@ namespace CU
 				return parsedRules;
 			}
 
-			static std::string GetCharset_(const std::string &content)
+			static std::string getCharset_(const std::string &content)
 			{
 				static const auto isCharRange = [](char start_ch, char end_ch) -> bool {
 					if (start_ch >= '0' && start_ch <= '9' && end_ch >= '0' && end_ch <= '9') {
@@ -307,6 +331,80 @@ namespace CU
 					}
 				}
 				return charSet;
+			}
+
+			std::vector<std::string> hotspotOpt_Impl_
+				(const HotspotCounter &counter, const std::vector<std::string> &origMatchRule, bool ignoreUnusedWords)
+			{
+				class Hotspot_Item {
+					public:
+						Hotspot_Item() : count_(0), word_() { }
+
+						Hotspot_Item(size_t count, const std::string &word) : count_(count), word_(word) { }
+
+						Hotspot_Item(const Hotspot_Item &other) : count_(other.count()), word_(other.word()) { }
+
+						~Hotspot_Item() { }
+
+						bool operator<(const Hotspot_Item &other) const
+						{
+							return (count_ < other.count());
+						}
+
+						bool operator>(const Hotspot_Item &other) const
+						{
+							return (count_ > other.count());
+						}
+
+						bool operator==(const Hotspot_Item &other) const
+						{
+							return (count_ == other.count() && word_ == other.word());
+						}
+
+						bool operator!=(const Hotspot_Item &other) const
+						{
+							return (count_ != other.count() || word_ != other.word());
+						}
+
+						size_t count() const 
+						{
+							return count_;
+						}
+
+						std::string word() const 
+						{
+							return word_;
+						}
+
+					private:
+						size_t count_;
+						std::string word_;
+				};
+
+				std::vector<Hotspot_Item> hotspots{};
+				hotspots.reserve(origMatchRule.size());
+
+				for (const auto &[word, count] : counter) {
+					hotspots.emplace_back(count, word);
+				}
+				if (!ignoreUnusedWords) {
+					for (const auto &word : origMatchRule) {
+						if (counter.count(word) == 0) {
+							hotspots.emplace_back(0, word);
+						}
+					}
+				}
+
+				std::sort(hotspots.begin(), hotspots.end(), std::greater<Hotspot_Item>());
+
+				std::vector<std::string> optimizedMatchRule{};
+				optimizedMatchRule.reserve(hotspots.size());
+
+				for (const auto &item : hotspots) {
+					optimizedMatchRule.emplace_back(item.word());
+				}
+
+				return optimizedMatchRule;
 			}
 	};
 }

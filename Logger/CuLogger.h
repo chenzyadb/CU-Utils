@@ -64,9 +64,18 @@ namespace CU
 			}
 
 		private:
-			Logger() : logPath_(), logLevel_(), cv_(), mtx_(), logQueue_(), queueFlushed_(true) { }
-			Logger(Logger &) = delete;
-			Logger &operator=(Logger &) = delete;
+			Logger() : 
+				logPath_(), 
+				logLevel_(), 
+				cv_(), 
+				mutex_(), 
+				logQueue_(), 
+				waitForFlush_(false), 
+				queueFlushed_(true) 
+			{ }
+			
+			Logger(Logger &other) = delete;
+			Logger &operator=(Logger &other) = delete;
 
 			static Logger &Instance_()
 			{
@@ -104,10 +113,10 @@ namespace CU
 				std::vector<std::string> writeQueue{};
 				for (;;) {
 					{
-						std::unique_lock<std::mutex> lck(mtx_);
+						std::unique_lock<std::mutex> lock(mutex_);
 						queueFlushed_ = logQueue_.empty();
 						while (logQueue_.empty()) {
-							cv_.wait(lck);
+							cv_.wait(lock);
 						}
 						writeQueue = logQueue_;
 						logQueue_.clear();
@@ -128,14 +137,12 @@ namespace CU
 					auto now = std::chrono::system_clock::now();
 					auto nowTime = std::chrono::system_clock::to_time_t(now);
 					auto localTime = std::localtime(std::addressof(nowTime));
-					char buffer[16] = { 0 };
-					std::snprintf(buffer, sizeof(buffer), "%02d-%02d %02d:%02d:%02d",
+					return CU::CFormat("%02d-%02d %02d:%02d:%02d",
 						localTime->tm_mon + 1, localTime->tm_mday, localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
-					return buffer;
 				};
 
-				std::unique_lock<std::mutex> lck(mtx_);
-				if (level <= logLevel_) {
+				std::unique_lock<std::mutex> lock(mutex_);
+				if (!waitForFlush_ && level <= logLevel_) {
 					switch (level) {
 						case LogLevel::ERROR:
 							logQueue_.emplace_back(getTimeInfo() + " [E] " + content + '\n');
@@ -161,21 +168,19 @@ namespace CU
 
 			void flushLogQueue_()
 			{
-				bool flushed = false;
-				while (!flushed) {
-					{
-						std::unique_lock<std::mutex> lck(mtx_);
-						flushed = queueFlushed_;
-					}
-					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				waitForFlush_ = true;
+				while (!queueFlushed_) {
+					std::this_thread::yield();
 				}
+				waitForFlush_ = false;
 			}
 
 			std::string logPath_;
 			LogLevel logLevel_;
 			std::condition_variable cv_;
-			std::mutex mtx_;
+			std::mutex mutex_;
 			std::vector<std::string> logQueue_;
+			volatile bool waitForFlush_;
 			volatile bool queueFlushed_;
 		};
 }

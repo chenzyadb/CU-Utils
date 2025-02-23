@@ -1,144 +1,267 @@
 // CuTimer by chenzyadb@github.com
-// Based on C++17 STL (MSVC)
+// Based on C++11 STL (GNUC)
 
-#ifndef _CU_TIMER_
-#define _CU_TIMER_
+#if !defined(__CU_TIMER__)
+#define __CU_TIMER__ 1
 
-#include <chrono>
 #include <thread>
 #include <mutex>
 #include <functional>
+#include <condition_variable>
+#include <chrono>
+#include <vector>
+#include <algorithm>
 
-#define TIMER_LOOP(timer) while((timer)._Timer_Condition())
 
-namespace CU
+#define TIMER_LOOP(timer) while((timer)._loop_condition())
+
+namespace CU 
 {
-    class TimerExcept : public std::exception
+    inline time_t _Get_Time()
+    {
+        auto time_pt = std::chrono::system_clock::now();
+        auto time_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(time_pt);
+	    return static_cast<time_t>(time_ms.time_since_epoch().count());
+    }
+
+    class _Task_Scheduler 
     {
         public:
-            TimerExcept(const std::string &message) : message_(message) { }
-
-            const char* what() const noexcept override
+            static void AddTask(const std::function<void(void)> &task, time_t targetTime)
             {
-                return message_.c_str();
+                Instance_().addTask_(task, targetTime);
             }
 
         private:
-            const std::string message_;
+            _Task_Scheduler() : condMutex_(), queueMutex_(), cond_(), taskQueue_()
+            {
+                std::thread(std::bind(&_Task_Scheduler::mainLoop_, this)).detach();
+            }
+
+            _Task_Scheduler(_Task_Scheduler &) = delete;
+			_Task_Scheduler &operator=(_Task_Scheduler &) = delete;
+
+            static _Task_Scheduler &Instance_()
+            {
+                static _Task_Scheduler instance{};
+                return instance;
+            }
+
+            void addTask_(const std::function<void(void)> &task, time_t targetTime)
+            {
+                std::vector<std::pair<time_t, std::function<void(void)>>> taskQueue{};
+                {
+                    std::unique_lock<std::mutex> lock(queueMutex_);
+                    taskQueue = taskQueue_;
+                }
+                auto taskPair = std::make_pair(targetTime, task);
+                if (taskQueue.size() == 0 || targetTime <= taskQueue.front().first) {
+                    taskQueue.insert(taskQueue.begin(), taskPair);
+                } else {
+                    for (auto iter = (taskQueue.end() - 1); iter >= taskQueue.begin(); --iter) {
+                        if (iter->first <= targetTime) {
+                            taskQueue.insert((iter + 1), taskPair);
+                            break;
+                        }
+                    }
+                }
+                {
+                    std::unique_lock<std::mutex> lock(queueMutex_);
+                    taskQueue_ = taskQueue;
+                }
+                if (taskQueue.size() == 1 || targetTime <= (taskQueue.begin() + 1)->first || targetTime <= _Get_Time()) {
+                    std::unique_lock<std::mutex> lock(condMutex_);
+                    cond_.notify_all();
+                }
+            }
+
+            void mainLoop_()
+            {
+                for (;;) {
+                    std::function<void(void)> task{};
+                    time_t nextTime = -1;
+                    {
+                        std::unique_lock<std::mutex> lock(queueMutex_);
+                        if (taskQueue_.size() > 0) {
+                            auto iter = taskQueue_.begin();
+                            if (iter->first <= _Get_Time()) {
+                                task = iter->second;
+                                taskQueue_.erase(iter);
+                            }
+                        }
+                        if (taskQueue_.size() > 0) {
+                            nextTime = taskQueue_.front().first;
+                        }
+                    }
+                    if (task != nullptr) {
+                        task();
+                    }
+                    {
+                        std::unique_lock<std::mutex> lock(condMutex_);
+                        if (nextTime != -1) {
+                            auto interval = nextTime - _Get_Time();
+                            if (interval > 0) {
+                                cond_.wait_for(lock, std::chrono::milliseconds(interval));
+                            }
+                        } else {
+                            cond_.wait(lock);
+                        }
+                    }
+                }
+            }
+
+            std::mutex condMutex_;
+            std::mutex queueMutex_;
+            std::condition_variable cond_;
+            std::vector<std::pair<time_t, std::function<void(void)>>> taskQueue_;
     };
 
     class Timer
     {
         public:
             typedef std::function<void(void)> Task;
+            typedef std::chrono::milliseconds Duration;
 
-            static void SingleShot(time_t interval, const Task &callback)
+            static void SingleShot(const Task &task, time_t delayTime)
             {
-                std::thread timerThread([interval, callback]() {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(interval));
-                    callback();
-                });
-                timerThread.detach();
+                _Task_Scheduler::AddTask(task, (_Get_Time() + delayTime));
             }
 
-            Timer() : interval_(0), loop_(), mtx_(), cv_(), started_(false), paused_(false), requestStop_(false) { }
+            Timer() : 
+                condMutex_(),
+                taskMutex_(),
+                cond_(),
+                task_(),
+                started_(false),
+                paused_(false),
+                stopRequested_(false),
+                interval_(std::numeric_limits<time_t>::max()),
+                lastContTime_(0)
+            { }
 
-            ~Timer()
+            Timer(const Task &task, time_t interval) :
+                condMutex_(),
+                taskMutex_(),
+                cond_(),
+                task_(task),
+                started_(false),
+                paused_(false),
+                stopRequested_(false),
+                interval_(interval),
+                lastContTime_(0)
+            { }
+
+            ~Timer() 
             {
-                if (started_) {
-                    stop();
-                }
+                stop();
             }
 
-            bool _Timer_Condition()
+            void setTask(const Task &task)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(interval_));
-                if (paused_) {
-                    std::unique_lock<std::mutex> lock(mtx_);
-                    while (paused_) {
-                        cv_.wait(lock);
-                    }
-                }
-                return !requestStop_;
+                std::unique_lock<std::mutex> lock(taskMutex_);
+                task_ = task;
             }
 
             void setInterval(time_t interval)
             {
                 interval_ = interval;
-            }
-
-            void setLoop(const Task &loop)
-            {
-                loop_ = loop;
-            }
-
-            void setTimeOutCallback(const Task &callback)
-            {
-                setLoop([this, callback]() {
-                    while (_Timer_Condition()) { 
-                        callback();
-                    }
-                });
+                if ((_Get_Time() - lastContTime_) > interval_) {
+                    cont();
+                }
             }
 
             void start()
             {
-                if (started_) {
-                    throw TimerExcept("Timer already started.");
+                if (!started_) {
+                    stopRequested_ = false;
+                    std::thread(std::bind(&CU::Timer::loop_, this)).detach();
                 }
-                std::thread thread_(std::bind(&CU::Timer::TimerThread_, this));
-                thread_.detach();
+            }
+
+            void runLoop(const Task &loop) 
+            {
+                if (!started_) {
+                    stopRequested_ = false;
+                    std::thread([this, loop]() {
+                        started_ = true;
+                        if (loop != nullptr) {
+                            loop();
+                        }
+                        started_ = false;
+                    }).detach();
+                }
             }
 
             void stop()
             {
-                if (!started_) {
-                    throw TimerExcept("Timer already stoped.");
+                if (started_) {
+                    cont();
+                    stopRequested_ = true;
+                    while (started_) {
+                        std::this_thread::yield();
+                    }
                 }
-                requestStop_ = true;
-                if (paused_) {
-                    continueTimer();
-                }
-                while (started_) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(interval_ / 2));
-                }
-                requestStop_ = false;
             }
 
-            void pauseTimer()
+            void pause()
             {
+                paused_ = true;
+            }
+
+            void cont()
+            {
+                paused_ = false;
+                std::unique_lock<std::mutex> lock(condMutex_);
+                cond_.notify_all();
+            }
+
+            time_t interval() const
+            {
+                return interval_;
+            }
+
+            bool _loop_condition() 
+            {
+                std::unique_lock<std::mutex> lock(condMutex_);
                 if (!paused_) {
-                    paused_ = true;
+                    auto duration = interval_ - (_Get_Time() - lastContTime_);
+                    if (duration > 0) {
+                        cond_.wait_for(lock, Duration(duration));
+                    }
+                } else {
+                    cond_.wait(lock);
                 }
-            }
-
-            void continueTimer()
-            {
-                if (paused_) {
-                    std::unique_lock<std::mutex> lock{};
-                    paused_ = false;
-                    cv_.notify_all();
-                }
+                lastContTime_ = _Get_Time();
+                return !stopRequested_;
             }
 
         private:
-            volatile time_t interval_;
-            Task loop_;
-            std::mutex mtx_;
-            std::condition_variable cv_;
+            mutable std::mutex condMutex_;
+            mutable std::mutex taskMutex_;
+            std::condition_variable cond_;
+            Task task_;
             volatile bool started_;
             volatile bool paused_;
-            volatile bool requestStop_;
+            volatile bool stopRequested_;
+            volatile time_t interval_;
+            volatile time_t lastContTime_;
 
-            void TimerThread_()
+            void loop_()
             {
                 started_ = true;
-                if (loop_) {
-                    loop_();
+                while (_loop_condition()) {
+                    Task task{};
+                    {
+                        std::unique_lock<std::mutex> lock(taskMutex_);
+                        task = task_;
+                    }
+                    if (task != nullptr) {
+                        task();
+                    }
                 }
                 started_ = false;
             }
     };
 }
 
-#endif // _CU_TIMER_
+#endif // !defined(__CU_TIMER__)

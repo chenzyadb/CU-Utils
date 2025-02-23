@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cstdarg>
 
 namespace CU 
 {
@@ -449,14 +450,14 @@ namespace CU
                         }
                         break;
                     default:
-                        throw FormatExcept("Invaild format rule");
+                        throw FormatExcept("Invalid format rule");
                 }
             } else if (*(format + pos) == '}') {
                 if (*(format + pos + 1) == '}') {
                     format_items.back().content.append('}');
                     pos += 2;
                 } else {
-                    throw FormatExcept("Invaild format rule");
+                    throw FormatExcept("Invalid format rule");
                 }
             } else {
                 format_items.back().content.append(*(format + pos));
@@ -464,7 +465,7 @@ namespace CU
             }
         }
         if (pos == _npos) {
-            throw FormatExcept("Invaild format rule");
+            throw FormatExcept("Invalid format rule");
         }
         return format_items;
     }
@@ -478,7 +479,7 @@ namespace CU
         for (auto iter = format_items.begin(); iter < format_items.end(); ++iter) {
             content.append(iter->content);
             if (iter->arg_idx != -1) {
-                if (iter->arg_idx >= args_list.size()) {
+                if (iter->arg_idx >= static_cast<int>(args_list.size())) {
                     throw FormatExcept("Argument index out of bound");
                 }
                 if (iter->max_length < INT_MAX) {
@@ -512,6 +513,29 @@ namespace CU
     inline std::string To_String(const _Ty &value)
     {
         return _To_Format_String(value).data();
+    }
+
+    inline std::string CFormat(const char* format, ...)
+    {
+        std::string content{};
+        int len = 0;
+        {
+            va_list args{};
+            va_start(args, format);
+            len = vsnprintf(nullptr, 0, format, args) + 1;
+            va_end(args);
+        }
+        if (len > 1) {
+            auto buffer = new char[len];
+            memset(buffer, 0, len);
+            va_list args{};
+            va_start(args, format);
+            vsnprintf(buffer, len, format, args);
+            va_end(args);
+            content = buffer;
+            delete[] buffer;
+        }
+        return content;
     }
 }
 

@@ -2,7 +2,7 @@
 // Based on C++17 STL (LLVM)
 
 #ifndef __LIB_CU__
-#define __LIB_CU__
+#define __LIB_CU__ 1
 
 #include <string>
 #include <vector>
@@ -32,6 +32,7 @@
 #define CU_COMPARE(val1, val2, size) (__builtin_memcmp(val1, val2, size) == 0)
 #define CU_MEMSET(dst, ch, size) __builtin_memset(dst, ch, size)
 #define CU_MEMCPY(dst, src, size) __builtin_memcpy(dst, src, size)
+#define CU_STRLEN(str) __builtin_strlen(str)
 #elif defined(_MSC_VER)
 #pragma warning(disable : 4996)
 #define CU_INLINE __forceinline
@@ -40,6 +41,7 @@
 #define CU_COMPARE(val1, val2, size) (memcmp(val1, val2, size) == 0)
 #define CU_MEMSET(dst, ch, size) memset(dst, ch, size)
 #define CU_MEMCPY(dst, src, size) memcpy(dst, src, size)
+#define CU_STRLEN(str) strlen(str)
 #else
 #define CU_INLINE inline
 #define CU_LIKELY(val) (!!(val))
@@ -47,11 +49,21 @@
 #define CU_COMPARE(val1, val2, size) (memcmp(val1, val2, size) == 0)
 #define CU_MEMSET(dst, ch, size) memset(dst, ch, size)
 #define CU_MEMCPY(dst, src, size) memcpy(dst, src, size)
+#define CU_STRLEN(str) strlen(str)
 #endif
 
 
 namespace CU
 {
+    CU_INLINE bool CStrEquals(const char* str1, const char* str2) noexcept
+    {
+        auto str_len = CU_STRLEN(str1);
+        if (str_len != CU_STRLEN(str2)) {
+            return false;
+        }
+        return CU_COMPARE(str1, str2, str_len);
+    }
+
     CU_INLINE std::string WcsToStr(const std::wstring &wc_str)
     {
         std::string str{};
@@ -584,10 +596,70 @@ namespace CU
     }
 
     template <typename _Ty>
+    CU_INLINE void Copy(_Ty &dst, const _Ty &src) noexcept
+    {
+        const auto src_addr = std::addressof(src);
+        auto dst_addr = std::addressof(dst);
+        if (CU_LIKELY(src_addr != dst_addr)) {
+            CU_MEMCPY(dst_addr, src_addr, sizeof(_Ty));
+        }
+    }
+
+    template <typename _Num_Ty>
+    inline void Max_Impl(_Num_Ty &max, _Num_Ty num) noexcept
+    {
+        if (num > max) {
+            max = num;
+        }
+    }
+
+    template <typename _Num_Ty, typename ..._Nums>
+    inline void Max_Impl(_Num_Ty &max, _Num_Ty num, _Nums ...nums) noexcept
+    {
+        if (num > max) {
+            max = num;
+        }
+        Max_Impl(max, nums...);
+    }
+
+    template <typename _Num_Ty, typename ..._Nums>
+    inline _Num_Ty Max(_Num_Ty num, _Nums ...nums) noexcept
+    {
+        auto max = num;
+        Max_Impl(max, nums...);
+        return max;
+    }
+
+    template <typename _Num_Ty>
+    inline void Min_Impl(_Num_Ty &min, _Num_Ty num) noexcept
+    {
+        if (num < min) {
+            min = num;
+        }
+    }
+
+    template <typename _Num_Ty, typename ..._Nums>
+    inline void Min_Impl(_Num_Ty &min, _Num_Ty num, _Nums ...nums) noexcept
+    {
+        if (num < min) {
+            min = num;
+        }
+        Min_Impl(min, nums...);
+    }
+
+    template <typename _Num_Ty, typename ..._Nums>
+    inline _Num_Ty Min(_Num_Ty num, _Nums ...nums) noexcept
+    {
+        auto min = num;
+        Min_Impl(min, nums...);
+        return min;
+    }
+
+    template <typename _Ty>
     CU_INLINE int64_t Round(_Ty num) noexcept
     {
         if ((static_cast<int64_t>(num * 10) % 10) >= 5) {
-            return static_cast<int64_t>(num) + 1;
+            return (static_cast<int64_t>(num) + 1);
         }
         return static_cast<int64_t>(num);
     }
@@ -838,6 +910,43 @@ namespace CU
             }
         }
         return _List_Ty(list_copy.begin(), (cur_iter + 1));
+    }
+
+    template <typename _List_Ty, typename _Elem_Ty>
+    inline _List_Ty Replace(const _List_Ty &list, const _Elem_Ty &old_elem, const _Elem_Ty &new_elem)
+    {
+        _List_Ty new_list(list);
+        std::replace(new_list.begin(), new_list.end(), old_elem, new_elem);
+        return new_list;
+    }
+
+    template <typename _Item_Ty>
+    inline void CreateVec_Impl(std::vector<_Item_Ty> &vec, const _Item_Ty &arg) 
+    {
+        vec.emplace_back(arg);
+    }
+
+    template <typename _Item_Ty, typename ..._Args>
+    inline void CreateVec_Impl(std::vector<_Item_Ty> &vec, const _Item_Ty &arg, const _Args &...args) 
+    {
+        vec.emplace_back(arg);
+        CreateVec_Impl(vec, args...);
+    }
+
+    template <typename _Item_Ty, typename ..._Args>
+    inline std::vector<_Item_Ty> CreateVec(const _Item_Ty &arg, const _Args &...args) 
+    {
+        std::vector<_Item_Ty> vec{};
+        CreateVec_Impl(vec, arg, args...);
+        return vec;
+    }
+
+    template <typename _Item_Ty>
+    inline std::vector<_Item_Ty> CreateVec(const _Item_Ty &arg) 
+    {
+        std::vector<_Item_Ty> vec{};
+        CreateVec_Impl(vec, arg);
+        return vec;
     }
 
     CU_INLINE int CompileDateCode() noexcept
