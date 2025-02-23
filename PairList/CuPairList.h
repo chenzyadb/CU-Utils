@@ -1,15 +1,13 @@
 // CuPairList by chenzyadb@github.com
-// Based on C++11 STL (GNUC)
+// Based on C++17 STL (GNUC)
 
-#if !defined(_CU_PAIR_LIST_)
-#define _CU_PAIR_LIST_ 1
+#if !defined(__CU_PAIR_LIST__)
+#define __CU_PAIR_LIST__ 1
 
-#include <exception>
 #include <vector>
 #include <string>
 #include <algorithm>
-#include <memory>
-#include <utility>
+#include <exception>
 
 namespace CU
 {
@@ -27,189 +25,117 @@ namespace CU
 			const std::string message_;
 	};
 
-	template <typename _Ty1, typename _Ty2>
+	template <typename _Key_Ty, typename _Val_Ty>
 	class PairList
 	{
 		public:
-			typedef std::pair<_Ty1, _Ty2> Pair;
-
-			class Iterator
+			class Pair 
 			{
 				public:
-					typedef typename std::vector<_Ty1>::const_iterator KeyIterator;
-					typedef typename std::vector<_Ty2>::const_iterator ValueIterator;
+					Pair() : key_(), value_() { }
 
-					Iterator(KeyIterator keyIter, ValueIterator valueIter) : 
-						keyIter_(keyIter), 
-						valueIter_(valueIter) 
-					{ }
+					Pair(const _Key_Ty &key, const _Val_Ty &value) : key_(key), value_(value) { }
 
-					Iterator(const Iterator &other) : 
-						keyIter_(other.keyIter()),
-						valueIter_(other.valueIter())
-					{ }
+					Pair(const Pair &other) : key_(other.key()), value_(other.value()) { }
 
-					Iterator(Iterator &&other) noexcept : 
-						keyIter_(other.keyIter()), 
-						valueIter_(other.valueIter())
-					{ }
+					Pair(Pair &&other) noexcept : key_(other.key_rv()), value_(other.value_rv()) { }
 
-					~Iterator() { }
-
-					Iterator &operator=(const Iterator &other)
+					Pair &operator=(const Pair &other)
 					{
 						if (std::addressof(other) != this) {
-							keyIter_ = other.keyIter();
-							valueIter_ = other.valueIter();
+							key_ = other.key();
+							value_ = other.value();
 						}
 						return *this;
 					}
 
-					Iterator &operator=(Iterator &&other) noexcept
+					Pair &operator=(Pair &&other) noexcept
 					{
 						if (std::addressof(other) != this) {
-							keyIter_ = other.keyIter();
-							valueIter_ = other.valueIter();
+							key_ = other.key();
+							value_ = other.value();
 						}
 						return *this;
 					}
 
-					Iterator operator+(size_t pos) const
+					bool operator==(const Pair &other) const
 					{
-						return Iterator((keyIter_ + pos), (valueIter_ + pos));
+						if (std::addressof(other) == this) {
+							return true;
+						}
+						return (key_ == other.key() && value_ == other.value());
 					}
 
-					Iterator operator-(size_t pos) const
+					bool operator!=(const Pair &other) const
 					{
-						return Iterator((keyIter_ - pos), (valueIter_ - pos));
+						if (std::addressof(other) == this) {
+							return false;
+						}
+						return (key_ != other.key() || value_ != other.value());
 					}
 
-					size_t operator-(const Iterator &other) const noexcept
+					bool operator<(const Pair &other) const
 					{
-						return (keyIter_ - other.keyIter());
+						if (std::addressof(other) == this) {
+							return false;
+						}
+						return (key_ < other.key());
 					}
 
-					Iterator &operator+=(size_t pos)
+					bool operator>(const Pair &other) const
 					{
-						keyIter_ += pos;
-						valueIter_ += pos;
-						return *this;
+						if (std::addressof(other) == this) {
+							return false;
+						}
+						return (key_ > other.key());
 					}
 
-					Iterator &operator-=(size_t pos)
+					_Key_Ty &key()
 					{
-						keyIter_ -= pos;
-						valueIter_ -= pos;
-						return *this;
+						return key_;
 					}
 
-					Iterator &operator++()
+					const _Key_Ty &key() const
 					{
-						keyIter_++;
-						valueIter_++;
-						return *this;
+						return key_;
 					}
 
-					Iterator operator++(int _val)
+					_Val_Ty &value()
 					{
-						(void)_val;
-						Iterator origIter(*this);
-						keyIter_++;
-						valueIter_++;
-						return origIter;
+						return value_;
 					}
 
-					Iterator &operator--()
+					const _Val_Ty &value() const
 					{
-						keyIter_--;
-						valueIter_--;
-						return *this;
+						return value_;
 					}
 
-					Iterator operator--(int _val)
+					_Key_Ty &&key_rv()
 					{
-						(void)_val;
-						Iterator origIter(*this);
-						keyIter_--;
-						valueIter_--;
-						return origIter;
+						return std::move(key_);
 					}
 
-					bool operator==(const Iterator &other) const noexcept
+					_Val_Ty &&value_rv()
 					{
-						return (keyIter_ == other.keyIter() && valueIter_ == other.valueIter());
-					}
-
-					bool operator!=(const Iterator &other) const noexcept
-					{
-						return (keyIter_ != other.keyIter() || valueIter_ != other.valueIter());
-					}
-
-					bool operator>(const Iterator &other) const noexcept
-					{
-						return (keyIter_ > other.keyIter() && valueIter_ > other.valueIter());
-					}
-
-					bool operator<(const Iterator &other) const noexcept
-					{
-						return (keyIter_ < other.keyIter() && valueIter_ < other.valueIter());
-					}
-
-					bool operator>=(const Iterator &other) const noexcept
-					{
-						return (keyIter_ >= other.keyIter() && valueIter_ >= other.valueIter());
-					}
-
-					bool operator<=(const Iterator &other) const noexcept
-					{
-						return (keyIter_ <= other.keyIter() && valueIter_ <= other.valueIter());
-					}
-
-					Pair operator*() const
-					{
-						return std::make_pair(*keyIter_, *valueIter_);
-					}
-
-					KeyIterator keyIter() const
-					{
-						return keyIter_;
-					}
-
-					ValueIterator valueIter() const
-					{
-						return valueIter_;
-					}
-
-					const _Ty1 &key() const
-					{
-						return *keyIter_;
-					}
-
-					const _Ty2 &value() const
-					{
-						return *valueIter_;
+						return std::move(value_);
 					}
 
 				private:
-					KeyIterator keyIter_;
-					ValueIterator valueIter_;
+					_Key_Ty key_;
+					_Val_Ty value_;
 			};
 
-			PairList() : keys_(), values_() { }
+			typedef typename std::vector<Pair>::iterator iterator;
+			typedef typename std::vector<Pair>::const_iterator const_iterator;
 
-			PairList(const std::vector<_Ty1> &keys, const std::vector<_Ty2> &values) :
-				keys_(keys),
-				values_(values) 
-			{ }
+			PairList() : data_() { }
 
 			PairList(const PairList &other) : 
-				keys_(other.keys()), 
-				values_(other.values()) 
+				data_(other.data())
 			{ }
 
 			PairList(PairList &&other) noexcept : 
-				keys_(other.keys_rv()), 
-				values_(other.values_rv()) 
+				data_(other.data_rv())
 			{ }
 
 			~PairList() { }
@@ -217,8 +143,7 @@ namespace CU
 			PairList &operator=(const PairList &other)
 			{
 				if (std::addressof(other) != this) {
-					keys_ = other.keys();
-					values_ = other.values();
+					data_ = other.data();
 				}
 				return *this;
 			}
@@ -226,184 +151,242 @@ namespace CU
 			PairList &operator=(PairList &&other) noexcept
 			{
 				if (std::addressof(other) != this) {
-					keys_ = other.keys_rv();
-					values_ = other.values_rv();
+					data_ = other.data_rv();
 				}
 				return *this;
 			}
 
 			bool operator==(const PairList &other) const
 			{
-				return (keys_ == other.keys() && values_ == other.values());
+				if (std::addressof(other) == this) {
+					return true;
+				}
+				return (other.data() == data_);
 			}
 
 			bool operator!=(const PairList &other) const
 			{
-				return (keys_ != other.keys() || values_ != other.values());
-			}
-
-			_Ty2 &operator[](const _Ty1 &key)
-			{
-				auto keyIter = std::find(keys_.begin(), keys_.end(), key);
-				if (keyIter == keys_.end()) {
-					keys_.emplace_back(key);
-					values_.emplace_back();
-					return values_.back();
+				if (std::addressof(other) == this) {
+					return false;
 				}
-				return *(values_.begin() + (keyIter - keys_.begin()));
+				return (other.data() != data_);
 			}
 
-			_Ty1 &operator()(const _Ty2 &value)
+			_Val_Ty &operator[](const _Key_Ty &key)
 			{
-				auto valueIter = std::find(values_.begin(), values_.end(), value);
-				if (valueIter == values_.end()) {
-					throw PairListExcept("Value not found");
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					if (iter->key() == key) {
+						return iter->value();
+					}
 				}
-				return *(keys_.begin() + (valueIter - values_.begin()));
+				data_.emplace_back(key, _Val_Ty());
+				return data_.back().value();
 			}
 
-			const _Ty2 &atKey(const _Ty1 &key) const
+			_Key_Ty &operator()(const _Val_Ty &value)
 			{
-				auto keyIter = std::find(keys_.begin(), keys_.end(), key);
-				if (keyIter == keys_.end()) {
-					throw PairListExcept("Key not found");
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					if (iter->value() == value) {
+						return iter->key();
+					}
 				}
-				return *(values_.begin() + (keyIter - keys_.begin()));
+				data_.emplace_back(_Key_Ty(), value);
+				return data_.back().key();
 			}
 
-			const _Ty1 &atValue(const _Ty2 &value) const
+			const _Val_Ty &atKey(const _Key_Ty &key) const
 			{
-				auto valueIter = std::find(values_.begin(), values_.end(), value);
-				if (valueIter == values_.end()) {
-					throw PairListExcept("Value not found");
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					if (iter->key() == key) {
+						return iter->value();
+					}
 				}
-				return *(keys_.begin() + (valueIter - values_.begin()));
+				throw PairListExcept("Key not found");
 			}
 
-			bool containsKey(const _Ty1 &key) const
+			const _Key_Ty &atValue(const _Val_Ty &value) const
 			{
-				return (std::find(keys_.begin(), keys_.end(), key) != keys_.end());
-			}
-
-			bool containsValue(const _Ty2 &value) const
-			{
-				return (std::find(values_.begin(), values_.end(), value) != values_.end());
-			}
-
-			Iterator begin() const
-			{
-				return Iterator(keys_.begin(), values_.begin());
-			}
-
-			Iterator end() const
-			{
-				return Iterator(keys_.end(), values_.end());
-			}
-
-			Pair front() const
-			{
-				return std::make_pair(keys_.front(), values_.front());
-			}
-
-			Pair back() const
-			{
-				return std::make_pair(keys_.back(), values_.back());
-			}
-
-			Iterator findKey(const _Ty1 &key) const
-			{
-				auto keyIter = std::find(keys_.begin(), keys_.end(), key);
-				if (keyIter == keys_.end()) {
-					return Iterator(keys_.end(), values_.end());
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					if (iter->value() == value) {
+						return iter->key();
+					}
 				}
-				return Iterator(keyIter, (values_.begin() + (keyIter - keys_.begin())));
+				throw PairListExcept("Value not found");
 			}
 
-			Iterator findValue(const _Ty2 &value) const
+			bool containsKey(const _Key_Ty &key) const
 			{
-				auto valueIter = std::find(values_.begin(), values_.end(), value);
-				if (valueIter == values_.end()) {
-					return Iterator(keys_.end(), values_.end());
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					if (iter->key() == key) {
+						return true;
+					}
 				}
-				return Iterator((keys_.begin() + (valueIter - values_.begin())), valueIter);
+				return false;
 			}
 
-			void add(const _Ty1 &key, const _Ty2 &value)
+			bool containsValue(const _Val_Ty &value) const
 			{
-				if (std::find(keys_.begin(), keys_.end(), key) != keys_.end()) {
-					throw PairListExcept("Key already exists");
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					if (iter->value() == value) {
+						return true;
+					}
 				}
-				keys_.emplace_back(key);
-				values_.emplace_back(value);
+				return false;
 			}
 
-			void removeKey(const _Ty1 &key)
+			const_iterator begin() const
 			{
-				auto keyIter = std::find(keys_.begin(), keys_.end(), key);
-				if (keyIter == keys_.end()) {
-					throw PairListExcept("Key not found");
+				return data_.begin();
+			}
+
+			iterator begin()
+			{
+				return data_.begin();
+			}
+
+			const_iterator end() const
+			{
+				return data_.end();
+			}
+
+			iterator end()
+			{
+				return data_.end();
+			}
+
+			const Pair &front() const
+			{
+				return data_.front();
+			}
+
+			Pair &front()
+			{
+				return data_.front();
+			}
+
+			const Pair &back() const
+			{
+				return data_.back();
+			}
+
+			Pair &back()
+			{
+				return data_.back();
+			}
+
+			const_iterator findKey(const _Key_Ty &key) const
+			{
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					if (iter->key() == key) {
+						return iter;
+					}
 				}
-				values_.erase(values_.begin() + (keyIter - keys_.begin()));
-				keys_.erase(keyIter);
+				return data_.end();
 			}
 
-			void removeValue(const _Ty2 &value)
+			const_iterator findValue(const _Val_Ty &value) const
 			{
-				auto valueIter = std::find(values_.begin(), values_.end(), value);
-				if (valueIter == values_.end()) {
-					throw PairListExcept("Value not found");
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					if (iter->value() == value) {
+						return iter;
+					}
 				}
-				keys_.erase(keys_.begin() + (valueIter - values_.begin()));
-				values_.erase(valueIter);
+				return data_.end();
 			}
 
-			void remove(const Iterator &iter)
+			void add(const _Key_Ty &key, const _Val_Ty &value)
 			{
-				keys_.erase(iter.keyIter());
-				values_.erase(iter.valueIter());
+				data_.emplace_back(key, value);
 			}
 
-			const std::vector<_Ty1> &keys() const
+			void add(const Pair &pair)
 			{
-				return keys_;
+				data_.emplace_back(pair);
 			}
 
-			const std::vector<_Ty2> &values() const
+			void remove(const_iterator iter)
 			{
-				return values_;
+				data_.erase(iter);
 			}
 
-			std::vector<_Ty1> &&keys_rv() 
+			void remove(iterator iter)
 			{
-				return std::move(keys_);
+				data_.erase(iter);
 			}
 
-			std::vector<_Ty2> &&values_rv() 
+			void removeKey(const _Key_Ty &key)
 			{
-				return std::move(values_);
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					if (iter->key() == key) {
+						data_.erase(iter);
+						break;
+					}
+				}
+			}
+
+			void removeValue(const _Val_Ty &value)
+			{
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					if (iter->value() == value) {
+						data_.erase(iter);
+						break;
+					}
+				}
+			}
+
+			std::vector<_Key_Ty> keys() const
+			{
+				std::vector<_Key_Ty> keysList{};
+				keysList.reserve(data_.size());
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					keysList.emplace_back(iter->key());
+				}
+				return keysList;
+			}
+
+			std::vector<_Val_Ty> values() const
+			{
+				std::vector<_Val_Ty> valuesList{};
+				valuesList.reserve(data_.size());
+				for (auto iter = data_.begin(); iter < data_.end(); ++iter) {
+					valuesList.emplace_back(iter->value());
+				}
+				return valuesList;
+			}
+
+			const std::vector<Pair> &data() const
+			{
+				return data_;
+			}
+
+			std::vector<Pair> &&data_rv() 
+			{
+				return std::move(data_);
+			}
+
+			void sort()
+			{
+				std::sort(data_.begin(), data_.end());
 			}
 
 			void reverse()
 			{
-				std::reverse(keys_.begin(), keys_.end());
-				std::reverse(values_.begin(), values_.end());
+				std::reverse(data_.begin(), data_.end());
 			}
 
 			void clear()
 			{
-				keys_.clear();
-				values_.clear();
+				data_.clear();
 			}
 
 			size_t size() const noexcept
 			{
-				return keys_.size();
+				return data_.size();
 			}
 
 		private:
-			std::vector<_Ty1> keys_;
-			std::vector<_Ty2> values_;
+			std::vector<Pair> data_;
 	};
 }
 
-#endif // !defined(_CU_PAIR_LIST_)
+#endif // !defined(__CU_PAIR_LIST__)
