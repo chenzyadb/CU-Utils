@@ -21,18 +21,18 @@ namespace CU
     constexpr size_t _npos = static_cast<size_t>(-1);
 
     class FormatExcept : public std::exception
-	{
-		public:
-			FormatExcept(const std::string &message) : message_(message) { }
+    {
+        public:
+            FormatExcept(const std::string &message) : message_(message) { }
 
-			const char* what() const noexcept override
-			{
-				return message_.c_str();
-			}
+            const char* what() const noexcept override
+            {
+                return message_.c_str();
+            }
 
-		private:
-			const std::string message_;
-	};
+        private:
+            const std::string message_;
+    };
 
     struct _Format_String
     {

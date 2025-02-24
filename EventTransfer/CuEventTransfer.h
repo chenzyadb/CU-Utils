@@ -14,82 +14,82 @@
 
 namespace CU
 {
-	class EventTransfer
-	{
-		public:
-			typedef size_t Handler;
-			typedef const void* TransData;
-			typedef std::function<void(TransData)> Subscriber;
+    class EventTransfer
+    {
+        public:
+            typedef size_t Handler;
+            typedef const void* TransData;
+            typedef std::function<void(TransData)> Subscriber;
 
-			static Handler Subscribe(const std::string &event, const Subscriber &subscriber)
-			{
-				return Instance_().addSubscriber_(event, subscriber);
-			}
+            static Handler Subscribe(const std::string &event, const Subscriber &subscriber)
+            {
+                return Instance_().addSubscriber_(event, subscriber);
+            }
 
-			static void Unsubscribe(const std::string &event, Handler handler)
-			{
-				Instance_().removeSubscriber_(event, handler);
-			}
+            static void Unsubscribe(const std::string &event, Handler handler)
+            {
+                Instance_().removeSubscriber_(event, handler);
+            }
 
-			template <typename _Data_Ty>
-			static void Post(const std::string &event, const _Data_Ty &data)
-			{
-				auto transData = reinterpret_cast<TransData>(std::addressof(data));
-				Instance_().postEvent_(event, transData);
-			}
+            template <typename _Data_Ty>
+            static void Post(const std::string &event, const _Data_Ty &data)
+            {
+                auto transData = reinterpret_cast<TransData>(std::addressof(data));
+                Instance_().postEvent_(event, transData);
+            }
 
-			template <typename _Data_Ty>
-			static const _Data_Ty &GetData(TransData transData) noexcept
-			{
-				return *reinterpret_cast<const _Data_Ty*>(transData);
-			}
+            template <typename _Data_Ty>
+            static const _Data_Ty &GetData(TransData transData) noexcept
+            {
+                return *reinterpret_cast<const _Data_Ty*>(transData);
+            }
 
-		private:
-			EventTransfer() : subscribers_(), mutex_() { }
-			EventTransfer(EventTransfer &other) = delete;
-			EventTransfer &operator=(EventTransfer &other) = delete;
+        private:
+            EventTransfer() : subscribers_(), mutex_() { }
+            EventTransfer(EventTransfer &other) = delete;
+            EventTransfer &operator=(EventTransfer &other) = delete;
 
-			static EventTransfer &Instance_()
-			{
-				static EventTransfer instance{};
-				return instance;
-			}
+            static EventTransfer &Instance_()
+            {
+                static EventTransfer instance{};
+                return instance;
+            }
 
-			Handler addSubscriber_(const std::string &event, const Subscriber &subscriber)
-			{
-				std::unique_lock<std::shared_mutex> lock(mutex_);
-				auto &subscribers = subscribers_[event];
-				subscribers.emplace_back(subscriber);
-				return (subscribers.size() - 1);
-			}
-
-			void removeSubscriber_(const std::string &event, Handler handler)
-			{
-				std::unique_lock<std::shared_mutex> lock(mutex_);
+            Handler addSubscriber_(const std::string &event, const Subscriber &subscriber)
+            {
+                std::unique_lock<std::shared_mutex> lock(mutex_);
                 auto &subscribers = subscribers_[event];
-				if (subscribers.size() > handler) {
-					subscribers.erase(subscribers.begin() + handler);
-				}
-			}
+                subscribers.emplace_back(subscriber);
+                return (subscribers.size() - 1);
+            }
 
-			void postEvent_(const std::string &event, TransData transData) const
-			{
-				std::vector<Subscriber> subscribers{};
-				{
-					std::shared_lock<std::shared_mutex> lock(mutex_);
-					auto iter = subscribers_.find(event);
-					if (iter != subscribers_.end()) {
-						subscribers = iter->second;
-					}
-				}
+            void removeSubscriber_(const std::string &event, Handler handler)
+            {
+                std::unique_lock<std::shared_mutex> lock(mutex_);
+                auto &subscribers = subscribers_[event];
+                if (subscribers.size() > handler) {
+                    subscribers.erase(subscribers.begin() + handler);
+                }
+            }
+
+            void postEvent_(const std::string &event, TransData transData) const
+            {
+                std::vector<Subscriber> subscribers{};
+                {
+                    std::shared_lock<std::shared_mutex> lock(mutex_);
+                    auto iter = subscribers_.find(event);
+                    if (iter != subscribers_.end()) {
+                        subscribers = iter->second;
+                    }
+                }
                 for (const auto &subscriber : subscribers) {
-					subscriber(transData);
-				}
-			}
+                    subscriber(transData);
+                }
+            }
 
-			std::unordered_map<std::string, std::vector<Subscriber>> subscribers_;
-			mutable std::shared_mutex mutex_;
-	};
+            std::unordered_map<std::string, std::vector<Subscriber>> subscribers_;
+            mutable std::shared_mutex mutex_;
+    };
 }
 
 #endif // !defined(__CU_EVENT_TRANSFER__)

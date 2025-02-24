@@ -18,171 +18,171 @@
 
 namespace CU
 {
-	class Logger
-	{
-		public:
-			enum class LogLevel : uint8_t {NONE, ERROR, WARN, INFO, DEBUG, VERBOSE};
+    class Logger
+    {
+        public:
+            enum class LogLevel : uint8_t {NONE, ERROR, WARN, INFO, DEBUG, VERBOSE};
 
-			static void Create(const LogLevel &level, const std::string &path)
-			{
-				Instance_().setLogger_(level, path);
-			}
+            static void Create(const LogLevel &level, const std::string &path)
+            {
+                Instance_().setLogger_(level, path);
+            }
 
-			template <typename ..._Args>
-			static void Error(const char* format, const _Args &...args)
-			{
-				Instance_().joinLogQueue_(LogLevel::ERROR, CU::Format(format, args...));
-			}
+            template <typename ..._Args>
+            static void Error(const char* format, const _Args &...args)
+            {
+                Instance_().joinLogQueue_(LogLevel::ERROR, CU::Format(format, args...));
+            }
 
-			template <typename ..._Args>
-			static void Warn(const char* format, const _Args &...args)
-			{
-				Instance_().joinLogQueue_(LogLevel::WARN, CU::Format(format, args...));
-			}
+            template <typename ..._Args>
+            static void Warn(const char* format, const _Args &...args)
+            {
+                Instance_().joinLogQueue_(LogLevel::WARN, CU::Format(format, args...));
+            }
 
-			template <typename ..._Args>
-			static void Info(const char* format, const _Args &...args)
-			{
-				Instance_().joinLogQueue_(LogLevel::INFO, CU::Format(format, args...));
-			}
+            template <typename ..._Args>
+            static void Info(const char* format, const _Args &...args)
+            {
+                Instance_().joinLogQueue_(LogLevel::INFO, CU::Format(format, args...));
+            }
 
-			template <typename ..._Args>
-			static void Debug(const char* format, const _Args &...args)
-			{
-				Instance_().joinLogQueue_(LogLevel::DEBUG, CU::Format(format, args...));
-			}
+            template <typename ..._Args>
+            static void Debug(const char* format, const _Args &...args)
+            {
+                Instance_().joinLogQueue_(LogLevel::DEBUG, CU::Format(format, args...));
+            }
 
-			template <typename ..._Args>
-			static void Verbose(const char* format, const _Args &...args)
-			{
-				Instance_().joinLogQueue_(LogLevel::VERBOSE, CU::Format(format, args...));
-			}
+            template <typename ..._Args>
+            static void Verbose(const char* format, const _Args &...args)
+            {
+                Instance_().joinLogQueue_(LogLevel::VERBOSE, CU::Format(format, args...));
+            }
 
-			static void Flush()
-			{
-				Instance_().flushLogQueue_();
-			}
+            static void Flush()
+            {
+                Instance_().flushLogQueue_();
+            }
 
-		private:
-			Logger() : 
-				logPath_(), 
-				logLevel_(), 
-				cv_(), 
-				mutex_(), 
-				logQueue_(), 
-				waitForFlush_(false), 
-				queueFlushed_(true) 
-			{ }
-			
-			Logger(Logger &other) = delete;
-			Logger &operator=(Logger &other) = delete;
+        private:
+            Logger() : 
+                logPath_(), 
+                logLevel_(), 
+                cv_(), 
+                mutex_(), 
+                logQueue_(), 
+                waitForFlush_(false), 
+                queueFlushed_(true) 
+            { }
+            
+            Logger(Logger &other) = delete;
+            Logger &operator=(Logger &other) = delete;
 
-			static Logger &Instance_()
-			{
-				static Logger instance{};
-				return instance;
-			}
+            static Logger &Instance_()
+            {
+                static Logger instance{};
+                return instance;
+            }
 
-			void setLogger_(const LogLevel &level, const std::string &path)
-			{
-				static const auto createFile = [](const std::string &filePath) -> bool {
-					auto fp = std::fopen(filePath.c_str(), "wt");
-					if (fp != nullptr) {
-						std::fclose(fp);
-						return true;
-					}
-					return false;
-				};
+            void setLogger_(const LogLevel &level, const std::string &path)
+            {
+                static const auto createFile = [](const std::string &filePath) -> bool {
+                    auto fp = std::fopen(filePath.c_str(), "wt");
+                    if (fp != nullptr) {
+                        std::fclose(fp);
+                        return true;
+                    }
+                    return false;
+                };
 
-				if (logLevel_ == LogLevel::NONE && level != LogLevel::NONE) {
-					logLevel_ = level;
-					logPath_ = path;
-					if (createFile(logPath_)) {
-						std::thread mainLoop(std::bind(&Logger::mainLoop_, this));
-						mainLoop.detach();
-					}
-				}
-			}
+                if (logLevel_ == LogLevel::NONE && level != LogLevel::NONE) {
+                    logLevel_ = level;
+                    logPath_ = path;
+                    if (createFile(logPath_)) {
+                        std::thread mainLoop(std::bind(&Logger::mainLoop_, this));
+                        mainLoop.detach();
+                    }
+                }
+            }
 
-			void mainLoop_()
-			{
-				auto fp = std::fopen(logPath_.c_str(), "at");
-				if (fp == nullptr) {
-					return;
-				}
-				std::vector<std::string> writeQueue{};
-				for (;;) {
-					{
-						std::unique_lock<std::mutex> lock(mutex_);
-						queueFlushed_ = logQueue_.empty();
-						while (logQueue_.empty()) {
-							cv_.wait(lock);
-						}
-						writeQueue = logQueue_;
-						logQueue_.clear();
-					}
-					if (!writeQueue.empty()) {
-						for (const auto &log : writeQueue) {
-							std::fputs(log.c_str(), fp);
-						}
-						std::fflush(fp);
-						writeQueue.clear();
-					}
-				}
-			}
+            void mainLoop_()
+            {
+                auto fp = std::fopen(logPath_.c_str(), "at");
+                if (fp == nullptr) {
+                    return;
+                }
+                std::vector<std::string> writeQueue{};
+                for (;;) {
+                    {
+                        std::unique_lock<std::mutex> lock(mutex_);
+                        queueFlushed_ = logQueue_.empty();
+                        while (logQueue_.empty()) {
+                            cv_.wait(lock);
+                        }
+                        writeQueue = logQueue_;
+                        logQueue_.clear();
+                    }
+                    if (!writeQueue.empty()) {
+                        for (const auto &log : writeQueue) {
+                            std::fputs(log.c_str(), fp);
+                        }
+                        std::fflush(fp);
+                        writeQueue.clear();
+                    }
+                }
+            }
 
-			void joinLogQueue_(const LogLevel &level, const std::string &content)
-			{
-				static const auto getTimeInfo = []() -> std::string {
-					auto now = std::chrono::system_clock::now();
-					auto nowTime = std::chrono::system_clock::to_time_t(now);
-					auto localTime = std::localtime(std::addressof(nowTime));
-					return CU::CFormat("%02d-%02d %02d:%02d:%02d",
-						localTime->tm_mon + 1, localTime->tm_mday, localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
-				};
+            void joinLogQueue_(const LogLevel &level, const std::string &content)
+            {
+                static const auto getTimeInfo = []() -> std::string {
+                    auto now = std::chrono::system_clock::now();
+                    auto nowTime = std::chrono::system_clock::to_time_t(now);
+                    auto localTime = std::localtime(std::addressof(nowTime));
+                    return CU::CFormat("%02d-%02d %02d:%02d:%02d",
+                        localTime->tm_mon + 1, localTime->tm_mday, localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+                };
 
-				std::unique_lock<std::mutex> lock(mutex_);
-				if (!waitForFlush_ && level <= logLevel_) {
-					switch (level) {
-						case LogLevel::ERROR:
-							logQueue_.emplace_back(getTimeInfo() + " [E] " + content + '\n');
-							break;
-						case LogLevel::WARN:
-							logQueue_.emplace_back(getTimeInfo() + " [W] " + content + '\n');
-							break;
-						case LogLevel::INFO:
-							logQueue_.emplace_back(getTimeInfo() + " [I] " + content + '\n');
-							break;
-						case LogLevel::DEBUG:
-							logQueue_.emplace_back(getTimeInfo() + " [D] " + content + '\n');
-							break;
-						case LogLevel::VERBOSE:
-							logQueue_.emplace_back(getTimeInfo() + " [V] " + content + '\n');
-							break;
-						default:
-							break;
-					}
-					cv_.notify_all();
-				}
-			}
+                std::unique_lock<std::mutex> lock(mutex_);
+                if (!waitForFlush_ && level <= logLevel_) {
+                    switch (level) {
+                        case LogLevel::ERROR:
+                            logQueue_.emplace_back(getTimeInfo() + " [E] " + content + '\n');
+                            break;
+                        case LogLevel::WARN:
+                            logQueue_.emplace_back(getTimeInfo() + " [W] " + content + '\n');
+                            break;
+                        case LogLevel::INFO:
+                            logQueue_.emplace_back(getTimeInfo() + " [I] " + content + '\n');
+                            break;
+                        case LogLevel::DEBUG:
+                            logQueue_.emplace_back(getTimeInfo() + " [D] " + content + '\n');
+                            break;
+                        case LogLevel::VERBOSE:
+                            logQueue_.emplace_back(getTimeInfo() + " [V] " + content + '\n');
+                            break;
+                        default:
+                            break;
+                    }
+                    cv_.notify_all();
+                }
+            }
 
-			void flushLogQueue_()
-			{
-				waitForFlush_ = true;
-				while (!queueFlushed_) {
-					std::this_thread::yield();
-				}
-				waitForFlush_ = false;
-			}
+            void flushLogQueue_()
+            {
+                waitForFlush_ = true;
+                while (!queueFlushed_) {
+                    std::this_thread::yield();
+                }
+                waitForFlush_ = false;
+            }
 
-			std::string logPath_;
-			LogLevel logLevel_;
-			std::condition_variable cv_;
-			std::mutex mutex_;
-			std::vector<std::string> logQueue_;
-			volatile bool waitForFlush_;
-			volatile bool queueFlushed_;
-		};
+            std::string logPath_;
+            LogLevel logLevel_;
+            std::condition_variable cv_;
+            std::mutex mutex_;
+            std::vector<std::string> logQueue_;
+            volatile bool waitForFlush_;
+            volatile bool queueFlushed_;
+        };
 }
 
 #endif // !defined(_CU_LOGGER_)

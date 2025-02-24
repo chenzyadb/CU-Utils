@@ -703,7 +703,7 @@ namespace CU
     template <typename _List_Ty, typename _Val_Ty>
     CU_INLINE bool Contains(const _List_Ty &list, const _Val_Ty &value)
     {
-        if (CU_UNLIKELY(list.size() == 0)) {
+        if (CU_UNLIKELY(list.begin() == list.end())) {
             return false;
         }
         return (std::find(list.begin(), list.end(), value) != list.end());
@@ -712,7 +712,7 @@ namespace CU
     template <typename _List_Ty>
     CU_INLINE typename _List_Ty::const_iterator MaxIter(const _List_Ty &list) noexcept
     {
-        if (CU_UNLIKELY(list.size() == 0)) {
+        if (CU_UNLIKELY(list.begin() == list.end())) {
             return list.end();
         }
         auto maxIter = list.begin();
@@ -727,7 +727,7 @@ namespace CU
     template <typename _List_Ty>
     CU_INLINE typename _List_Ty::const_iterator MinIter(const _List_Ty &list) noexcept
     {
-        if (CU_UNLIKELY(list.size() == 0)) {
+        if (CU_UNLIKELY(list.begin() == list.end())) {
             return list.end();
         }
         auto minIter = list.begin();
@@ -742,7 +742,7 @@ namespace CU
     template <typename _List_Ty, typename _Val_Ty>
     CU_INLINE typename _List_Ty::const_iterator ApproxIter(const _List_Ty &list, _Val_Ty targetVal) noexcept
     {
-        if (CU_UNLIKELY(list.size() == 0)) {
+        if (CU_UNLIKELY(list.begin() == list.end())) {
             return list.end();
         }
         auto approxIter = list.begin();
@@ -760,7 +760,7 @@ namespace CU
     template <typename _List_Ty, typename _Val_Ty>
     CU_INLINE typename _List_Ty::const_iterator ApproxGreaterIter(const _List_Ty &list, _Val_Ty targetVal) noexcept
     {
-        if (CU_UNLIKELY(list.size() == 0)) {
+        if (CU_UNLIKELY(list.begin() == list.end())) {
             return list.end();
         }
         auto approxIter = list.end() - 1;
@@ -778,7 +778,7 @@ namespace CU
     template <typename _List_Ty, typename _Val_Ty>
     CU_INLINE typename _List_Ty::const_iterator ApproxLesserIter(const _List_Ty &list, _Val_Ty targetVal) noexcept
     {
-        if (CU_UNLIKELY(list.size() == 0)) {
+        if (CU_UNLIKELY(list.begin() == list.end())) {
             return list.end();
         }
         auto approxIter = list.begin();
@@ -807,7 +807,7 @@ namespace CU
     template <typename _List_Ty>
     CU_INLINE int64_t Average(const _List_Ty &list) noexcept
     {
-        if (CU_UNLIKELY(list.size() == 0)) {
+        if (CU_UNLIKELY(list.begin() == list.end())) {
             return 0;
         }
         int64_t sum = 0;
@@ -820,7 +820,7 @@ namespace CU
     template <typename _List_Ty>
     CU_INLINE int64_t Sum(const _List_Ty &list) noexcept
     {
-        if (CU_UNLIKELY(list.size() == 0)) {
+        if (CU_UNLIKELY(list.begin() == list.end())) {
             return 0;
         }
         int64_t sum = 0;
@@ -833,12 +833,32 @@ namespace CU
     template <typename _List_Ty>
     CU_INLINE _List_Ty Reverse(const _List_Ty &list) 
     {
-        if (CU_UNLIKELY(list.size() == 0)) {
+        if (CU_UNLIKELY(list.begin() == list.end())) {
             return {};
         }
         _List_Ty reversedList(list);
         std::reverse(reversedList.begin(), reversedList.end());
         return reversedList;
+    }
+
+    template <typename _List_Ty>
+    CU_INLINE _List_Ty Unique(const _List_Ty &list) 
+    {
+        if (CU_UNLIKELY(list.begin() == list.end())) {
+            return {};
+        }
+        _List_Ty uniqueList(list);
+        for (size_t pos = 0; pos < uniqueList.size(); pos++) {
+            auto comp_pos = pos + 1;
+            while (comp_pos < uniqueList.size()) {
+                if (uniqueList[comp_pos] == uniqueList[pos]) {
+                    uniqueList.erase(uniqueList.begin() + comp_pos);
+                } else {
+                    comp_pos++;
+                }
+            }
+        }
+        return uniqueList;
     }
 
     template <typename _List_Ty>
@@ -1000,7 +1020,7 @@ namespace CU
     {
         auto time_pt = std::chrono::system_clock::now();
         auto time_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(time_pt);
-	    return static_cast<time_t>(time_ms.time_since_epoch().count());
+        return static_cast<time_t>(time_ms.time_since_epoch().count());
     }
 
     CU_INLINE void SleepMs(time_t time) 

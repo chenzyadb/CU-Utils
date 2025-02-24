@@ -21,7 +21,7 @@ namespace CU
     {
         auto time_pt = std::chrono::system_clock::now();
         auto time_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(time_pt);
-	    return static_cast<time_t>(time_ms.time_since_epoch().count());
+        return static_cast<time_t>(time_ms.time_since_epoch().count());
     }
 
     class _Task_Scheduler 
@@ -39,7 +39,7 @@ namespace CU
             }
 
             _Task_Scheduler(_Task_Scheduler &) = delete;
-			_Task_Scheduler &operator=(_Task_Scheduler &) = delete;
+            _Task_Scheduler &operator=(_Task_Scheduler &) = delete;
 
             static _Task_Scheduler &Instance_()
             {
