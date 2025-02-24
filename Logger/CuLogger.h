@@ -1,5 +1,5 @@
 // CuLogger by chenzyadb.
-// Based on C++11 STL (GNUC) & CuFormat
+// Based on C++17 STL (GNUC) & CuFormat
 
 #if !defined(_CU_LOGGER_)
 #define _CU_LOGGER_ 1
@@ -29,31 +29,31 @@ namespace CU
             }
 
             template <typename ..._Args>
-            static void Error(const char* format, const _Args &...args)
+            static void Error(std::string_view format, const _Args &...args)
             {
                 Instance_().joinLogQueue_(LogLevel::ERROR, CU::Format(format, args...));
             }
 
             template <typename ..._Args>
-            static void Warn(const char* format, const _Args &...args)
+            static void Warn(std::string_view format, const _Args &...args)
             {
                 Instance_().joinLogQueue_(LogLevel::WARN, CU::Format(format, args...));
             }
 
             template <typename ..._Args>
-            static void Info(const char* format, const _Args &...args)
+            static void Info(std::string_view format, const _Args &...args)
             {
                 Instance_().joinLogQueue_(LogLevel::INFO, CU::Format(format, args...));
             }
 
             template <typename ..._Args>
-            static void Debug(const char* format, const _Args &...args)
+            static void Debug(std::string_view format, const _Args &...args)
             {
                 Instance_().joinLogQueue_(LogLevel::DEBUG, CU::Format(format, args...));
             }
 
             template <typename ..._Args>
-            static void Verbose(const char* format, const _Args &...args)
+            static void Verbose(std::string_view format, const _Args &...args)
             {
                 Instance_().joinLogQueue_(LogLevel::VERBOSE, CU::Format(format, args...));
             }

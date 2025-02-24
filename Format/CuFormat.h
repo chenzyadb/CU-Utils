@@ -1,5 +1,5 @@
 // CuFormat by chenzyadb@github.com
-// Based on C++11 STL (GNUC)
+// Based on C++17 STL (GNUC)
 
 #if !defined(_CU_FORMAT_)
 #define _CU_FORMAT_ 1
@@ -10,6 +10,7 @@
 
 #include <exception>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <cstdio>
 #include <cstdlib>
@@ -214,7 +215,7 @@ namespace CU
     template <typename _Ty>
     inline _Format_String _Int_To_String(_Ty value) noexcept
     {
-        char buffer[32] = { 0 };
+        char buffer[32]{};
         auto pos = sizeof(buffer) - 2;
         if (value > 0) {
             for (auto integer = value; integer > 0; integer /= 10) {
@@ -340,7 +341,7 @@ namespace CU
 
     inline _Format_String _To_Format_String(char value) noexcept
     {
-        char buffer[2] = { 0 };
+        char buffer[2]{};
         buffer[0] = value;
         return buffer;
     }
@@ -350,7 +351,7 @@ namespace CU
         return value;
     }
 
-    inline _Format_String _To_Format_String(const std::string &value) noexcept
+    inline _Format_String _To_Format_String(std::string_view value) noexcept
     {
         return value.data();
     }
@@ -471,10 +472,10 @@ namespace CU
     }
 
     template <typename... _Args>
-    inline std::string Format(const char* format, const _Args &...args) 
+    inline std::string Format(std::string_view format, const _Args &...args) 
     {
         _Format_String content{};
-        std::vector<_Format_Item> format_items(_Format_Impl(format));
+        std::vector<_Format_Item> format_items(_Format_Impl(format.data()));
         std::vector<_Format_String> args_list(_Args_Impl(format_items.size(), args...));
         for (auto iter = format_items.begin(); iter < format_items.end(); ++iter) {
             content.append(iter->content);
@@ -493,20 +494,20 @@ namespace CU
         return content.data();
     }
 
-    inline std::string Format(const char* format)
+    inline std::string Format(std::string_view format)
     {
-        return format;
+        return format.data();
     }
 
     template <typename... _Args>
-    inline int Println(const char* format, const _Args &...args) 
+    inline int Println(std::string_view format, const _Args &...args) 
     {
         return std::puts(Format(format, args...).c_str());
     }
 
-    inline int Println(const char* format) noexcept
+    inline int Println(std::string_view format) noexcept
     {
-        return std::puts(format);
+        return std::puts(format.data());
     }
 
     template <typename _Ty>
