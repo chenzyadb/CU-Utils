@@ -491,7 +491,7 @@ namespace CU
 
     CU_INLINE int StrToInt(const std::string &str) noexcept
     {
-        long integer = std::strtol(str.c_str(), nullptr, 10);
+        long integer = std::strtol(str.data(), nullptr, 10);
         if (integer > std::numeric_limits<int>::max()) {
             return std::numeric_limits<int>::max();
         }
@@ -503,7 +503,7 @@ namespace CU
 
     CU_INLINE int StrToInt(const std::wstring &str) noexcept
     {
-        long integer = std::wcstol(str.c_str(), nullptr, 10);
+        long integer = std::wcstol(str.data(), nullptr, 10);
         if (integer > std::numeric_limits<int>::max()) {
             return std::numeric_limits<int>::max();
         }
@@ -515,42 +515,42 @@ namespace CU
 
     CU_INLINE int64_t StrToLong(const std::string &str) noexcept
     {
-        return std::strtoll(str.c_str(), nullptr, 10);
+        return std::strtoll(str.data(), nullptr, 10);
     }
 
     CU_INLINE int64_t StrToLong(const std::wstring &str) noexcept
     {
-        return std::wcstoll(str.c_str(), nullptr, 10);
+        return std::wcstoll(str.data(), nullptr, 10);
     }
 
     CU_INLINE uint64_t StrToULong(const std::string &str) noexcept
     {
-        return std::strtoull(str.c_str(), nullptr, 10);
+        return std::strtoull(str.data(), nullptr, 10);
     }
 
     CU_INLINE uint64_t StrToULong(const std::wstring &str) noexcept
     {
-        return std::wcstoull(str.c_str(), nullptr, 10);
+        return std::wcstoull(str.data(), nullptr, 10);
     }
 
     CU_INLINE double StrToDouble(const std::string &str) noexcept
     {
-        return std::strtod(str.c_str(), nullptr);
+        return std::strtod(str.data(), nullptr);
     }
 
     CU_INLINE double StrToDouble(const std::wstring &str) noexcept
     {
-        return std::wcstod(str.c_str(), nullptr);
+        return std::wcstod(str.data(), nullptr);
     }
 
     CU_INLINE int64_t HexToInt(const std::string &str) noexcept
     {
-        return std::strtoll(str.c_str(), nullptr, 16);
+        return std::strtoll(str.data(), nullptr, 16);
     }
 
     CU_INLINE int64_t HexToInt(const std::wstring &str) noexcept
     {
-        return std::wcstoll(str.c_str(), nullptr, 16);
+        return std::wcstoll(str.data(), nullptr, 16);
     }
 
     CU_INLINE std::string TrimStr(const std::string &str) 
@@ -1030,7 +1030,7 @@ namespace CU
 
     CU_INLINE int RunCommand(const std::string &command) noexcept
     {
-        return std::system(command.c_str());
+        return std::system(command.data());
     }
 
     CU_INLINE void Pause()

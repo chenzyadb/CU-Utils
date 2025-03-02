@@ -86,7 +86,7 @@ namespace CU
             void setLogger_(const LogLevel &level, const std::string &path)
             {
                 static const auto createFile = [](const std::string &filePath) -> bool {
-                    auto fp = std::fopen(filePath.c_str(), "wt");
+                    auto fp = std::fopen(filePath.data(), "wt");
                     if (fp != nullptr) {
                         std::fclose(fp);
                         return true;
@@ -106,7 +106,7 @@ namespace CU
 
             void mainLoop_()
             {
-                auto fp = std::fopen(logPath_.c_str(), "at");
+                auto fp = std::fopen(logPath_.data(), "at");
                 if (fp == nullptr) {
                     return;
                 }
@@ -123,7 +123,7 @@ namespace CU
                     }
                     if (!writeQueue.empty()) {
                         for (const auto &log : writeQueue) {
-                            std::fputs(log.c_str(), fp);
+                            std::fputs(log.data(), fp);
                         }
                         std::fflush(fp);
                         writeQueue.clear();

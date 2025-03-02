@@ -28,7 +28,7 @@ namespace CU
 
             const char* what() const noexcept override
             {
-                return message_.c_str();
+                return message_.data();
             }
 
         private:
@@ -502,7 +502,7 @@ namespace CU
     template <typename... _Args>
     inline int Println(std::string_view format, const _Args &...args) 
     {
-        return std::puts(Format(format, args...).c_str());
+        return std::puts(Format(format, args...).data());
     }
 
     inline int Println(std::string_view format) noexcept

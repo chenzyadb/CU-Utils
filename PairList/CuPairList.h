@@ -19,7 +19,7 @@ namespace CU
 
             const char* what() const noexcept override
             {
-                return message_.c_str();
+                return message_.data();
             }
 
         private:

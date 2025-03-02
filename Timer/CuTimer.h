@@ -12,16 +12,13 @@
 #include <vector>
 #include <algorithm>
 
-
-#define TIMER_LOOP(timer) while((timer)._loop_condition())
-
 namespace CU 
 {
     inline time_t _Get_Time()
     {
         auto time_pt = std::chrono::system_clock::now();
         auto time_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(time_pt);
-        return static_cast<time_t>(time_ms.time_since_epoch().count());
+        return time_ms.time_since_epoch().count();
     }
 
     class _Task_Scheduler 
@@ -33,7 +30,7 @@ namespace CU
             }
 
         private:
-            _Task_Scheduler() : condMutex_(), queueMutex_(), cond_(), taskQueue_()
+            _Task_Scheduler() : taskQueue_(), cond_(), queueMutex_(), condMutex_()
             {
                 std::thread(std::bind(&_Task_Scheduler::mainLoop_, this)).detach();
             }
@@ -79,7 +76,7 @@ namespace CU
             {
                 for (;;) {
                     std::function<void(void)> task{};
-                    time_t nextTime = -1;
+                    time_t nextContTime = -1;
                     {
                         std::unique_lock<std::mutex> lock(queueMutex_);
                         if (taskQueue_.size() > 0) {
@@ -90,7 +87,7 @@ namespace CU
                             }
                         }
                         if (taskQueue_.size() > 0) {
-                            nextTime = taskQueue_.front().first;
+                            nextContTime = taskQueue_.front().first;
                         }
                     }
                     if (task != nullptr) {
@@ -98,8 +95,8 @@ namespace CU
                     }
                     {
                         std::unique_lock<std::mutex> lock(condMutex_);
-                        if (nextTime != -1) {
-                            auto interval = nextTime - _Get_Time();
+                        if (nextContTime != -1) {
+                            auto interval = nextContTime - _Get_Time();
                             if (interval > 0) {
                                 cond_.wait_for(lock, std::chrono::milliseconds(interval));
                             }
@@ -110,10 +107,10 @@ namespace CU
                 }
             }
 
-            std::mutex condMutex_;
-            std::mutex queueMutex_;
-            std::condition_variable cond_;
             std::vector<std::pair<time_t, std::function<void(void)>>> taskQueue_;
+            std::condition_variable cond_;
+            std::mutex queueMutex_;
+            std::mutex condMutex_;
     };
 
     class Timer
@@ -135,7 +132,7 @@ namespace CU
                 started_(false),
                 paused_(false),
                 stopRequested_(false),
-                interval_(std::numeric_limits<time_t>::max()),
+                interval_(0),
                 lastContTime_(0)
             { }
 
@@ -165,15 +162,15 @@ namespace CU
             void setInterval(time_t interval)
             {
                 interval_ = interval;
-                if ((_Get_Time() - lastContTime_) > interval_) {
-                    cont();
+                if (started_ && !paused_) {
+                    std::unique_lock<std::mutex> lock(condMutex_);
+                    cond_.notify_all();
                 }
             }
 
             void start()
             {
                 if (!started_) {
-                    stopRequested_ = false;
                     std::thread(std::bind(&CU::Timer::loop_, this)).detach();
                 }
             }
@@ -181,7 +178,6 @@ namespace CU
             void runLoop(const Task &loop) 
             {
                 if (!started_) {
-                    stopRequested_ = false;
                     std::thread([this, loop]() {
                         started_ = true;
                         if (loop != nullptr) {
@@ -200,6 +196,7 @@ namespace CU
                     while (started_) {
                         std::this_thread::yield();
                     }
+                    stopRequested_ = false;
                 }
             }
 
@@ -211,25 +208,28 @@ namespace CU
             void cont()
             {
                 paused_ = false;
-                std::unique_lock<std::mutex> lock(condMutex_);
-                cond_.notify_all();
+                lastContTime_ = 0;
+                if (started_) {
+                    std::unique_lock<std::mutex> lock(condMutex_);
+                    cond_.notify_all();
+                }
             }
 
-            time_t interval() const
+            bool loopCondition() 
             {
-                return interval_;
-            }
-
-            bool _loop_condition() 
-            {
-                std::unique_lock<std::mutex> lock(condMutex_);
-                if (!paused_) {
-                    auto duration = interval_ - (_Get_Time() - lastContTime_);
-                    if (duration > 0) {
-                        cond_.wait_for(lock, Duration(duration));
+                {
+                    std::unique_lock<std::mutex> lock(condMutex_);
+                    if (paused_) {
+                        while (paused_) {
+                            cond_.wait(lock);
+                        }
+                    } else {
+                        auto waitDuration = lastContTime_ + interval_ - _Get_Time();
+                        while (waitDuration > 0) {
+                            cond_.wait_for(lock, Duration(waitDuration));
+                            waitDuration = lastContTime_ + interval_ - _Get_Time();
+                        }
                     }
-                } else {
-                    cond_.wait(lock);
                 }
                 lastContTime_ = _Get_Time();
                 return !stopRequested_;
@@ -249,19 +249,17 @@ namespace CU
             void loop_()
             {
                 started_ = true;
-                while (_loop_condition()) {
-                    Task task{};
-                    {
-                        std::unique_lock<std::mutex> lock(taskMutex_);
-                        task = task_;
-                    }
-                    if (task != nullptr) {
-                        task();
+                while (loopCondition()) {
+                    std::unique_lock<std::mutex> lock(taskMutex_);
+                    if (task_ != nullptr) {
+                        task_();
                     }
                 }
                 started_ = false;
             }
     };
 }
+
+#define CU_TIMER_LOOP(timer) while((timer).loopCondition())
 
 #endif // !defined(__CU_TIMER__)
