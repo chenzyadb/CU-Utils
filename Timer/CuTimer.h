@@ -161,10 +161,12 @@ namespace CU
 
             void setInterval(time_t interval)
             {
-                interval_ = interval;
-                if (started_ && !paused_) {
-                    std::unique_lock<std::mutex> lock(condMutex_);
-                    cond_.notify_all();
+                if (interval != interval_) {
+                    interval_ = interval;
+                    if (started_ && !paused_) {
+                        std::unique_lock<std::mutex> lock(condMutex_);
+                        cond_.notify_all();
+                    }
                 }
             }
 

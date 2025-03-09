@@ -67,11 +67,11 @@ namespace CU
             Logger() : 
                 logPath_(), 
                 logLevel_(), 
-                cv_(), 
-                mutex_(), 
                 logQueue_(), 
-                waitForFlush_(false), 
-                queueFlushed_(true) 
+                queueMutex_(),
+                flushMutex_(),
+                queueCond_(),
+                flushCond_()
             { }
             
             Logger(Logger &other) = delete;
@@ -106,6 +106,11 @@ namespace CU
 
             void mainLoop_()
             {
+                static const auto flushed = [this]() {
+                    std::unique_lock lock(flushMutex_);
+                    flushCond_.notify_all();
+                };
+
                 auto fp = std::fopen(logPath_.data(), "at");
                 if (fp == nullptr) {
                     return;
@@ -113,10 +118,10 @@ namespace CU
                 std::vector<std::string> writeQueue{};
                 for (;;) {
                     {
-                        std::unique_lock<std::mutex> lock(mutex_);
-                        queueFlushed_ = logQueue_.empty();
+                        std::unique_lock<std::mutex> lock(queueMutex_);
                         while (logQueue_.empty()) {
-                            cv_.wait(lock);
+                            flushed();
+                            queueCond_.wait(lock);
                         }
                         writeQueue = logQueue_;
                         logQueue_.clear();
@@ -141,8 +146,8 @@ namespace CU
                         localTime->tm_mon + 1, localTime->tm_mday, localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
                 };
 
-                std::unique_lock<std::mutex> lock(mutex_);
-                if (!waitForFlush_ && level <= logLevel_) {
+                std::unique_lock<std::mutex> lock(queueMutex_);
+                if (level <= logLevel_) {
                     switch (level) {
                         case LogLevel::ERROR:
                             logQueue_.emplace_back(getTimeInfo() + " [E] " + content + '\n');
@@ -162,26 +167,23 @@ namespace CU
                         default:
                             break;
                     }
-                    cv_.notify_all();
+                    queueCond_.notify_all();
                 }
             }
 
             void flushLogQueue_()
             {
-                waitForFlush_ = true;
-                while (!queueFlushed_) {
-                    std::this_thread::yield();
-                }
-                waitForFlush_ = false;
+                std::unique_lock lock(flushMutex_);
+                flushCond_.wait(lock);
             }
 
             std::string logPath_;
             LogLevel logLevel_;
-            std::condition_variable cv_;
-            std::mutex mutex_;
             std::vector<std::string> logQueue_;
-            volatile bool waitForFlush_;
-            volatile bool queueFlushed_;
+            std::mutex queueMutex_;
+            std::mutex flushMutex_;
+            std::condition_variable queueCond_;
+            std::condition_variable flushCond_;
         };
 }
 
