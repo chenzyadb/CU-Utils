@@ -37,15 +37,15 @@ namespace CU
 
                     Pair(const _Key_Ty &key, const _Val_Ty &value) : key_(key), value_(value) { }
 
-                    Pair(const Pair &other) : key_(other.key()), value_(other.value()) { }
+                    Pair(const Pair &other) : key_(other.key_), value_(other.value_) { }
 
-                    Pair(Pair &&other) noexcept : key_(other.key_rv()), value_(other.value_rv()) { }
+                    Pair(Pair &&other) noexcept : key_(std::move(other.key_)), value_(std::move(other.value_)) { }
 
                     Pair &operator=(const Pair &other)
                     {
                         if (std::addressof(other) != this) {
-                            key_ = other.key();
-                            value_ = other.value();
+                            key_ = other.key_;
+                            value_ = other.value_;
                         }
                         return *this;
                     }
@@ -53,8 +53,8 @@ namespace CU
                     Pair &operator=(Pair &&other) noexcept
                     {
                         if (std::addressof(other) != this) {
-                            key_ = other.key();
-                            value_ = other.value();
+                            key_ = std::move(other.key_);
+                            value_ = std::move(other.value_);
                         }
                         return *this;
                     }
@@ -64,7 +64,7 @@ namespace CU
                         if (std::addressof(other) == this) {
                             return true;
                         }
-                        return (key_ == other.key() && value_ == other.value());
+                        return (key_ == other.key_ && value_ == other.value_);
                     }
 
                     bool operator!=(const Pair &other) const
@@ -72,7 +72,7 @@ namespace CU
                         if (std::addressof(other) == this) {
                             return false;
                         }
-                        return (key_ != other.key() || value_ != other.value());
+                        return (key_ != other.key_ || value_ != other.value_);
                     }
 
                     _Key_Ty &key()
@@ -95,16 +95,6 @@ namespace CU
                         return value_;
                     }
 
-                    _Key_Ty &&key_rv()
-                    {
-                        return std::move(key_);
-                    }
-
-                    _Val_Ty &&value_rv()
-                    {
-                        return std::move(value_);
-                    }
-
                 private:
                     _Key_Ty key_;
                     _Val_Ty value_;
@@ -115,20 +105,16 @@ namespace CU
 
             PairList() : data_() { }
 
-            PairList(const PairList &other) : 
-                data_(other.data())
-            { }
+            PairList(const PairList &other) : data_(other.data_) { }
 
-            PairList(PairList &&other) noexcept : 
-                data_(other.data_rv())
-            { }
+            PairList(PairList &&other) noexcept : data_(std::move(other.data_)) { }
 
             ~PairList() { }
 
             PairList &operator=(const PairList &other)
             {
                 if (std::addressof(other) != this) {
-                    data_ = other.data();
+                    data_ = other.data_;
                 }
                 return *this;
             }
@@ -136,7 +122,7 @@ namespace CU
             PairList &operator=(PairList &&other) noexcept
             {
                 if (std::addressof(other) != this) {
-                    data_ = other.data_rv();
+                    data_ = std::move(other.data_);
                 }
                 return *this;
             }
@@ -146,7 +132,7 @@ namespace CU
                 if (std::addressof(other) == this) {
                     return true;
                 }
-                return (other.data() == data_);
+                return (other.data_ == data_);
             }
 
             bool operator!=(const PairList &other) const
@@ -154,7 +140,7 @@ namespace CU
                 if (std::addressof(other) == this) {
                     return false;
                 }
-                return (other.data() != data_);
+                return (other.data_ != data_);
             }
 
             _Val_Ty &operator[](const _Key_Ty &key)
@@ -337,16 +323,6 @@ namespace CU
                     valuesList.emplace_back(iter->value());
                 }
                 return valuesList;
-            }
-
-            const std::vector<Pair> &data() const
-            {
-                return data_;
-            }
-
-            std::vector<Pair> &&data_rv() 
-            {
-                return std::move(data_);
             }
 
             void sort(std::function<bool(const Pair &, const Pair &)> compare_func = nullptr)

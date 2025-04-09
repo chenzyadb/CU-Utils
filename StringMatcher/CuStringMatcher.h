@@ -34,9 +34,9 @@ namespace CU
         public:
             enum class MatchIndex : uint8_t {FRONT, MIDDLE, BACK, ENTIRE};
 
-            StringMatcher() : matchRules_(), matchAll_(false) { }
+            StringMatcher() : matchRules_(), hotspotCounters_(), matchAll_(false) { }
 
-            StringMatcher(const std::string &ruleText) : matchRules_(), matchAll_(false)
+            StringMatcher(const std::string &ruleText) : matchRules_(), hotspotCounters_(), matchAll_(false)
             {
                 if (ruleText.size() == 0) {
                     return;
@@ -125,13 +125,15 @@ namespace CU
             }
 
             StringMatcher(const StringMatcher &other) : 
-                matchRules_(other._Get_MatchRules()),
-                matchAll_(other._Is_MatchAll())
+                matchRules_(other.matchRules_),
+                hotspotCounters_(other.hotspotCounters_),
+                matchAll_(other.matchAll_)
             { }
 
             StringMatcher(StringMatcher &&other) noexcept : 
-                matchRules_(other._Get_MatchRules()),
-                matchAll_(other._Is_MatchAll())
+                matchRules_(std::move(other.matchRules_)),
+                hotspotCounters_(std::move(other.hotspotCounters_)),
+                matchAll_(other.matchAll_)
             { }
 
             ~StringMatcher() { }
@@ -139,20 +141,31 @@ namespace CU
             StringMatcher &operator=(const StringMatcher &other)
             {
                 if (std::addressof(other) != this) {
-                    matchRules_ = other._Get_MatchRules();
-                    matchAll_ = other._Is_MatchAll();
+                    matchRules_ = other.matchRules_;
+                    hotspotCounters_ = other.hotspotCounters_;
+                    matchAll_ = other.matchAll_;
+                }
+                return *this;
+            }
+
+            StringMatcher &operator=(StringMatcher &&other) noexcept
+            {
+                if (std::addressof(other) != this) {
+                    matchRules_ = std::move(other.matchRules_);
+                    hotspotCounters_ = std::move(other.hotspotCounters_);
+                    matchAll_ = other.matchAll_;
                 }
                 return *this;
             }
 
             bool operator==(const StringMatcher &other) const
             {
-                return (matchAll_ == other._Is_MatchAll() && matchRules_ == other._Get_MatchRules());
+                return (matchAll_ == other.matchAll_ && matchRules_ == other.matchRules_);
             }
 
             bool operator!=(const StringMatcher &other) const
             {
-                return (matchAll_ != other._Is_MatchAll() || matchRules_ != other._Get_MatchRules());
+                return (matchAll_ != other.matchAll_ || matchRules_ != other.matchRules_);
             }
 
             bool match(const std::string &str, bool enableHotspotOpt = false) const
@@ -231,16 +244,6 @@ namespace CU
                             hotspotOpt_Impl_(hotspotCounters_.at(index), matchRules_.at(index), ignoreUnusedWords);
                     }
                 }
-            }
-
-            std::unordered_map<MatchIndex, std::vector<std::string>> _Get_MatchRules() const
-            {
-                return matchRules_;
-            }
-
-            bool _Is_MatchAll() const
-            {
-                return matchAll_;
             }
 
         private:

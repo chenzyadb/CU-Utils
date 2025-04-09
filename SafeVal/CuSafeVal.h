@@ -56,6 +56,12 @@ namespace CU
                 return value_;
             }
 
+            operator _Val_Ty() const
+            {
+                std::shared_lock<std::shared_mutex> lock(mutex_);
+                return value_;
+            }
+
             bool operator==(const SafeVal &other) const
             {
                 std::shared_lock<std::shared_mutex> lock(mutex_);
