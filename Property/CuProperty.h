@@ -14,6 +14,162 @@
 
 namespace CU
 {
+    class AnyValue
+    {
+        public:
+            template<typename _Ty>
+            static size_t TypeId() noexcept
+            {
+                static constexpr char data = 0;
+                return reinterpret_cast<size_t>(std::addressof(data));
+            }
+
+            class Content_Base
+            {
+                public:
+                    Content_Base() = default;
+
+                    virtual ~Content_Base() = default;
+
+                    virtual Content_Base* copy() const = 0;
+            };
+
+            template <typename _Content_Ty>
+            class Content : Content_Base
+            {
+                public:
+                    Content(Content &) = delete;
+
+                    Content &operator=(Content &) = delete;
+
+                    Content(const _Content_Ty &data) : data_(data) { }
+
+                    Content(_Content_Ty &&data) : data_(data) { }
+
+                    ~Content() { }
+
+                    Content_Base* copy() const override
+                    {
+                        return reinterpret_cast<Content_Base*>(new Content(data_));
+                    }
+
+                    _Content_Ty &data()
+                    {
+                        return data_;
+                    }
+
+                    const _Content_Ty &data() const
+                    {
+                        return data_;
+                    }
+
+                private:
+                    _Content_Ty data_;
+            };
+
+            AnyValue() : content_(nullptr), typeId_(0) { }
+
+            template <typename _Content_Ty>
+            AnyValue(const _Content_Ty &data) : content_(NewContent(data)), typeId_(TypeId<_Content_Ty>()) { }
+
+            AnyValue(const AnyValue &other) : content_(nullptr), typeId_(other.typeId_) 
+            {
+                if (other.content_ != nullptr) {
+                    content_ = (other.content_)->copy();
+                }
+            }
+
+            AnyValue(AnyValue &&other) noexcept : content_(other.content_), typeId_(other.typeId_) 
+            {
+                other.content_ = nullptr;
+            }
+
+            ~AnyValue() 
+            {
+                clear();
+            }
+
+            AnyValue &operator=(const AnyValue &other)
+            {
+                if (std::addressof(other) != this) {
+                    clear();
+                    if (other.content_ != nullptr) {
+                        content_ = (other.content_)->copy();
+                        typeId_ = other.typeId_;
+                    }
+                }
+                return *this;
+            }
+
+            AnyValue &operator=(AnyValue &&other) noexcept
+            {
+                if (std::addressof(other) != this) {
+                    clear();
+                    content_ = other.content_;
+                    typeId_ = other.typeId_;
+
+                    other.content_ = nullptr;
+                    other.typeId_ = 0;
+                }
+                return *this;
+            }
+
+            template <typename _Content_Ty>
+            explicit operator _Content_Ty() const
+            {
+                return data<_Content_Ty>();
+            }
+
+            template <typename _Content_Ty>
+            const _Content_Ty &data() const
+            {
+                if (content_ != nullptr && typeId_ == TypeId<_Content_Ty>()) {
+                    return ToContent<_Content_Ty>(content_)->data();
+                }
+                throw std::bad_cast();
+            }
+
+            template <typename _Content_Ty>
+            _Content_Ty &data()
+            {
+                if (content_ != nullptr && typeId_ == TypeId<_Content_Ty>()) {
+                    return ToContent<_Content_Ty>(content_)->data();
+                }
+                throw std::bad_cast();
+            }
+
+            template <typename _Content_Ty>
+            bool is() const noexcept
+            {
+                return (typeId_ == TypeId<_Content_Ty>());
+            }
+
+            void clear()
+            {
+                if (content_ != nullptr) {
+                    delete content_;
+                    content_ = nullptr;
+                    typeId_ = 0;
+                }
+            }
+
+        private:
+            Content_Base* content_;
+            size_t typeId_;
+
+            template <typename _Content_Ty>
+            static Content_Base* NewContent(const _Content_Ty &data)
+            {
+                return reinterpret_cast<Content_Base*>(new Content(data));
+            }
+
+            template <typename _Content_Ty>
+            static Content<_Content_Ty>* ToContent(Content_Base* base) noexcept
+            {
+                return reinterpret_cast<Content<_Content_Ty>*>(base);
+            }
+    };
+
     class PropertyWatcher
     {
         public:
@@ -93,129 +249,55 @@ namespace CU
             class Value 
             {
                 public:
-                    typedef std::variant<std::string, int64_t, bool, std::vector<std::string>, std::vector<int64_t>> ValueData;
+                    Value() : mutex_(), data_() { }
 
-                    enum class ValueType : uint8_t {NONE, STRING, INTEGER, BOOLEAN, LIST_STRING, LIST_INTEGER};
+                    template <typename _Val_Ty>
+                    Value(const _Val_Ty &data) : mutex_(), data_(data) { }
 
-                    Value() : data_(), type_(ValueType::NONE), mutex_() { }
+                    Value(const Value &other) : mutex_(), data_(other.data()) { }
 
-                    Value(const std::string &data) : data_(data), type_(ValueType::STRING), mutex_() { }
+                    Value(Value &&other) noexcept : mutex_(), data_(other.data()) { }
 
-                    Value(const char* data) : data_(std::string(data)), type_(ValueType::STRING), mutex_() { }
-
-                    Value(int64_t data) : data_(data), type_(ValueType::INTEGER), mutex_() { }
-
-                    Value(int data) : data_(static_cast<int64_t>(data)), type_(ValueType::INTEGER), mutex_() { }
-
-                    Value(bool data) : data_(data), type_(ValueType::BOOLEAN), mutex_() { }
-
-                    Value(const std::vector<std::string> &data) : data_(data), type_(ValueType::LIST_STRING), mutex_() { }
-
-                    Value(const std::vector<int64_t> &data) : data_(data), type_(ValueType::LIST_INTEGER), mutex_() { }
-
-                    Value(const Value &other) : data_(other.data()), type_(other.type()), mutex_() { }
-
-                    Value(Value &&other) noexcept : data_(other.data()), type_(other.type()), mutex_() { }
-
-                    Value &operator=(const Value &other)
+                    Value operator=(const Value &other)
                     {
                         std::unique_lock<std::shared_mutex> lock(mutex_);
                         if (std::addressof(other) != this) {
                             data_ = other.data();
-                            type_ = other.type();
                         }
-                        return *this;
+                        return data_;
                     }
 
-                    Value &operator=(Value &&other) noexcept
+                    Value operator=(Value &&other) noexcept
                     {
                         std::unique_lock<std::shared_mutex> lock(mutex_);
                         if (std::addressof(other) != this) {
                             data_ = other.data();
-                            type_ = other.type();
                         }
-                        return *this;
+                        return data_;
                     }
 
-                    bool operator==(const Value &other) const
+                    template <typename _Val_Ty>
+                    operator _Val_Ty() const
                     {
                         std::shared_lock<std::shared_mutex> lock(mutex_);
-                        if (std::addressof(other) == this) {
-                            return true;
-                        }
-                        return (other.type() == type_ && other.data() == data_);
+                        return data_.data<_Val_Ty>();
                     }
 
-                    bool operator!=(const Value &other) const
+                    template <typename _Val_Ty>
+                    bool is() const
                     {
-                        std::shared_lock<std::shared_mutex> lock(mutex_);
-                        if (std::addressof(other) == this) {
-                            return false;
-                        }
-                        return (other.type() != type_ || other.data() != data_);
+                        return data().is<_Val_Ty>();
                     }
 
-                    std::string toString() const
-                    {
-                        std::shared_lock<std::shared_mutex> lock(mutex_);
-                        if (type_ != ValueType::STRING) {
-                            return {};
-                        }
-                        return std::get<std::string>(data_);
-                    }
-
-                    int64_t toInteger() const
-                    {
-                        std::shared_lock<std::shared_mutex> lock(mutex_);
-                        if (type_ != ValueType::INTEGER) {
-                            return 0;
-                        }
-                        return std::get<int64_t>(data_);
-                    }
-
-                    bool toBoolean() const
-                    {
-                        std::shared_lock<std::shared_mutex> lock(mutex_);
-                        if (type_ != ValueType::BOOLEAN) {
-                            return false;
-                        }
-                        return std::get<bool>(data_);
-                    }
-
-                    std::vector<std::string> toListString() const
-                    {
-                        std::shared_lock<std::shared_mutex> lock(mutex_);
-                        if (type_ != ValueType::LIST_STRING) {
-                            return {};
-                        }
-                        return std::get<std::vector<std::string>>(data_);
-                    }
-
-                    std::vector<int64_t> toListInteger() const
-                    {
-                        std::shared_lock<std::shared_mutex> lock(mutex_);
-                        if (type_ != ValueType::LIST_INTEGER) {
-                            return {};
-                        }
-                        return std::get<std::vector<int64_t>>(data_);
-                    }
-
-                    ValueData data() const
+                    AnyValue data() const
                     {
                         std::shared_lock<std::shared_mutex> lock(mutex_);
                         return data_;
                     }
 
-                    ValueType type() const
-                    {
-                        std::shared_lock<std::shared_mutex> lock(mutex_);
-                        return type_;
-                    }
-
                 private:
-                    ValueData data_;
-                    ValueType type_;
                     mutable std::shared_mutex mutex_;
+                    AnyValue data_;
             };
 
             static bool Exists(const std::string &name)
