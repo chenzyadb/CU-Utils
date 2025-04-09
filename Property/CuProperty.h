@@ -82,6 +82,7 @@ namespace CU
             AnyValue(AnyValue &&other) noexcept : content_(other.content_), typeId_(other.typeId_) 
             {
                 other.content_ = nullptr;
+                other.typeId_ = 0;
             }
 
             ~AnyValue() 
@@ -175,17 +176,17 @@ namespace CU
         public:
             enum class Event : uint8_t {SET, GET, REMOVE};
 
-            typedef size_t Handler;
+            typedef size_t Handle;
             typedef std::function<void(void)> Notifier;
 
-            static Handler AddWatch(const std::string &propName, Event event, const Notifier &notifier)
+            static Handle AddWatch(const std::string &propName, Event event, const Notifier &notifier)
             {
                 return Instance_().addWatch_(propName, event, notifier);
             }
 
-            static void RemoveWatch(const std::string &propName, Event event, Handler handler)
+            static void RemoveWatch(const std::string &propName, Event event, Handle handle)
             {
-                Instance_().removeWatch_(propName, event, handler);
+                Instance_().removeWatch_(propName, event, handle);
             }
 
             static void _Call_Notifier(const std::string &propName, Event event)
@@ -204,7 +205,7 @@ namespace CU
                 return instance;
             }
 
-            Handler addWatch_(const std::string &propName, Event event, const Notifier &notifier)
+            Handle addWatch_(const std::string &propName, Event event, const Notifier &notifier)
             {
                 std::unique_lock<std::shared_mutex> lock(mutex_);
                 auto &notifiers = notifiers_[propName][event];
@@ -212,12 +213,12 @@ namespace CU
                 return (notifiers.size() - 1);
             }
 
-            void removeWatch_(const std::string &propName, Event event, Handler handler)
+            void removeWatch_(const std::string &propName, Event event, Handle handle)
             {
                 std::unique_lock<std::shared_mutex> lock(mutex_);
                 auto &notifiers = notifiers_[propName][event];
-                if (notifiers.size() > handler) {
-                    notifiers.erase(notifiers.begin() + handler);
+                if (notifiers.size() > handle) {
+                    notifiers.erase(notifiers.begin() + handle);
                 }
             }
 

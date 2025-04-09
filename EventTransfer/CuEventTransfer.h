@@ -17,18 +17,18 @@ namespace CU
     class EventTransfer
     {
         public:
-            typedef size_t Handler;
+            typedef size_t Handle;
             typedef const void* TransData;
             typedef std::function<void(TransData)> Subscriber;
 
-            static Handler Subscribe(const std::string &event, const Subscriber &subscriber)
+            static Handle Subscribe(const std::string &event, const Subscriber &subscriber)
             {
                 return Instance_().addSubscriber_(event, subscriber);
             }
 
-            static void Unsubscribe(const std::string &event, Handler handler)
+            static void Unsubscribe(const std::string &event, Handle Handle)
             {
-                Instance_().removeSubscriber_(event, handler);
+                Instance_().removeSubscriber_(event, Handle);
             }
 
             template <typename _Data_Ty>
@@ -55,7 +55,7 @@ namespace CU
                 return instance;
             }
 
-            Handler addSubscriber_(const std::string &event, const Subscriber &subscriber)
+            Handle addSubscriber_(const std::string &event, const Subscriber &subscriber)
             {
                 std::unique_lock<std::shared_mutex> lock(mutex_);
                 auto &subscribers = subscribers_[event];
@@ -63,12 +63,12 @@ namespace CU
                 return (subscribers.size() - 1);
             }
 
-            void removeSubscriber_(const std::string &event, Handler handler)
+            void removeSubscriber_(const std::string &event, Handle Handle)
             {
                 std::unique_lock<std::shared_mutex> lock(mutex_);
                 auto &subscribers = subscribers_[event];
-                if (subscribers.size() > handler) {
-                    subscribers.erase(subscribers.begin() + handler);
+                if (subscribers.size() > Handle) {
+                    subscribers.erase(subscribers.begin() + Handle);
                 }
             }
 
