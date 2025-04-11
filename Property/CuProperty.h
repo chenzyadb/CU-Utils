@@ -312,10 +312,17 @@ namespace CU
                 PropertyWatcher::_Call_Notifier(name, PropertyWatcher::Event::SET);
             }
 
-            static const Value &Get(const std::string &name)
+            template <typename _Val_Ty>
+            static _Val_Ty Get(const std::string &name)
             {
                 PropertyWatcher::_Call_Notifier(name, PropertyWatcher::Event::GET);
-                return Instance_().getProp_(name);
+                if (Instance_().isPropExists_(name)) {
+                    const auto &value = Instance_().getProp_(name);
+                    if (value.is<_Val_Ty>()) {
+                        return static_cast<_Val_Ty>(value);
+                    }
+                }
+                return {};
             }
 
             static void Remove(const std::string &name)
@@ -363,11 +370,8 @@ namespace CU
                 properties_[name] = value;
             }
 
-            const Value &getProp_(const std::string &name)
+            const Value &getProp_(const std::string &name) const
             {
-                if (!isPropExists_(name)) {
-                    addProp_(name, Value());
-                }
                 std::shared_lock<std::shared_mutex> lock(mutex_);
                 return properties_.at(name);
             }
