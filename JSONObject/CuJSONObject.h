@@ -15,6 +15,7 @@
 #include <string_view>
 #include <variant>
 #include <memory>
+#include <limits>
 #include <exception>
 #include <algorithm>
 #include <functional>
@@ -23,6 +24,7 @@
 #include <cstdint>
 #include <climits>
 #include <cstring>
+#include <cinttypes>
 
 namespace CU
 {
@@ -40,236 +42,219 @@ namespace CU
             const std::string message_;
     };
 
-    struct _JSON_String
+    class _JSON_String
     {
-        char stack_buffer[128];
-        char* heap_block;
-        size_t length;
-        size_t capacity;
+        public:
+            _JSON_String() noexcept : buffer_(), data_(nullptr), length_(0), capacity_(sizeof(buffer_)) { }
 
-        _JSON_String() noexcept : stack_buffer(), heap_block(nullptr), length(0), capacity(sizeof(stack_buffer)) { }
-
-        _JSON_String(const _JSON_String &other) noexcept :
-            stack_buffer(),
-            heap_block(nullptr),
-            length(0),
-            capacity(sizeof(stack_buffer))
-        {
-            append(other);
-        }
-
-        _JSON_String(_JSON_String &&other) noexcept :
-            stack_buffer(),
-            heap_block(other.heap_block),
-            length(other.length),
-            capacity(other.capacity)
-        {
-            std::memcpy(stack_buffer, other.stack_buffer, sizeof(stack_buffer));
-            other.heap_block = nullptr;
-        }
-
-        _JSON_String(const char* src) noexcept :
-            stack_buffer(),
-            heap_block(nullptr),
-            length(0),
-            capacity(sizeof(stack_buffer))
-        {
-            append(src);
-        }
-
-        ~_JSON_String() noexcept
-        {
-            if (heap_block != nullptr) {
-                std::free(heap_block);
+            _JSON_String(const _JSON_String &other) noexcept :
+                buffer_(),
+                data_(nullptr),
+                length_(0),
+                capacity_(sizeof(buffer_))
+            {
+                append(other);
             }
-        }
 
-        void append(const _JSON_String &other) noexcept
-        {
-            auto new_len = length + other.length;
-            if (new_len >= capacity) {
-                resize(capacity + new_len);
+            _JSON_String(_JSON_String &&other) noexcept :
+                buffer_(),
+                data_(other.data_),
+                length_(other.length_),
+                capacity_(other.capacity_)
+            {
+                std::memcpy(buffer_, other.buffer_, sizeof(buffer_));
+                other.data_ = nullptr;
             }
-            std::memcpy((data() + length), other.data(), other.length);
-            *(data() + new_len) = '\0';
-            length = new_len;
-        }
 
-        void append(const char* src) noexcept
-        {
-            auto src_len = std::strlen(src);
-            auto new_len = length + src_len;
-            if (new_len >= capacity) {
-                resize(capacity + new_len);
+            _JSON_String(const char* src) noexcept :
+                buffer_(),
+                data_(nullptr),
+                length_(0),
+                capacity_(sizeof(buffer_))
+            {
+                append(src);
             }
-            std::memcpy((data() + length), src, src_len);
-            *(data() + new_len) = '\0';
-            length = new_len;
-        }
 
-        void append(char ch) noexcept
-        {
-            if ((length + 1) >= capacity) {
-                resize(capacity * 2);
+            ~_JSON_String() noexcept
+            {
+                if (data_ != nullptr) {
+                    std::free(data_);
+                }
             }
-            *(data() + length) = ch;
-            *(data() + length + 1) = '\0';
-            length++;
-        }
 
-        void resize(size_t req_capacity) noexcept
-        {
-            if (req_capacity < capacity && length >= req_capacity) {
-                shrink(req_capacity - 1);
+            _JSON_String &operator=(const _JSON_String &other)
+            {
+                if (std::addressof(other) != this) {
+                    shrink(0);
+                    append(other.data());
+                }
+                return *this;
             }
-            if (req_capacity > sizeof(stack_buffer)) {
-                auto new_block = reinterpret_cast<char*>(std::realloc(heap_block, req_capacity));
-                if (new_block != nullptr) {
-                    if (heap_block == nullptr) {
-                        std::memcpy(new_block, stack_buffer, length);
+
+            _JSON_String &operator=(_JSON_String &other) noexcept
+            {
+                if (std::addressof(other) != this) {
+                    clear();
+                    std::memcpy(buffer_, other.buffer_, sizeof(buffer_));
+                    data_ = other.data_;
+                    length_ = other.length_;
+                    capacity_ = other.capacity_;
+                    other.data_ = nullptr;
+                }
+                return *this;
+            }
+
+            void append(const _JSON_String &other) noexcept
+            {
+                auto new_len = length_ + other.length_;
+                if (new_len >= capacity_) {
+                    resize(capacity_ + new_len);
+                }
+                std::memcpy((data() + length_), other.data(), other.length_);
+                *(data() + new_len) = '\0';
+                length_ = new_len;
+            }
+
+            void append(const char* src) noexcept
+            {
+                auto src_len = std::strlen(src);
+                auto new_len = length_ + src_len;
+                if (new_len >= capacity_) {
+                    resize(capacity_ + new_len);
+                }
+                std::memcpy((data() + length_), src, src_len);
+                *(data() + new_len) = '\0';
+                length_ = new_len;
+            }
+
+            void append(char ch) noexcept
+            {
+                if ((length_ + 1) >= capacity_) {
+                    resize(capacity_ * 2);
+                }
+                *(data() + length_) = ch;
+                *(data() + length_ + 1) = '\0';
+                length_++;
+            }
+
+            void resize(size_t req_capacity) noexcept
+            {
+                if (req_capacity < capacity_ && length_ >= req_capacity) {
+                    shrink(req_capacity - 1);
+                }
+                if (req_capacity > sizeof(buffer_)) {
+                    auto new_block = reinterpret_cast<char*>(std::realloc(data_, req_capacity));
+                    if (new_block != nullptr) {
+                        if (data_ == nullptr) {
+                            std::memcpy(new_block, buffer_, length_);
+                        }
+                        *(new_block + length_) = '\0';
+                        data_ = new_block;
+                        capacity_ = req_capacity;
                     }
-                    *(new_block + length) = '\0';
-                    heap_block = new_block;
-                    capacity = req_capacity;
+                } else {
+                    capacity_ = sizeof(buffer_);
+                    if (data_ != nullptr && length_ > 0) {
+                        std::memcpy(buffer_, data_, length_);
+                        std::free(data_);
+                    }
+                    buffer_[length_] = '\0';
                 }
-            } else {
-                capacity = sizeof(stack_buffer);
-                if (heap_block != nullptr && length > 0) {
-                    std::memcpy(stack_buffer, heap_block, length);
-                    std::free(heap_block);
+            }
+
+            void shrink(size_t req_length) noexcept
+            {
+                if (req_length < length_) {
+                    *(data() + req_length) = '\0';
+                    length_ = req_length;
                 }
-                stack_buffer[length] = '\0';
             }
-        }
 
-        void shrink(size_t req_length) noexcept
-        {
-            if (req_length < length) {
-                *(data() + req_length) = '\0';
-                length = req_length;
+            char* data() noexcept
+            {
+                if (data_ != nullptr) {
+                    return data_;
+                }
+                return buffer_;
             }
-        }
 
-        bool equals(const char* str) const noexcept
-        {
-            if (std::strlen(str) != length) {
-                return false;
+            const char* data() const noexcept
+            {
+                if (data_ != nullptr) {
+                    return data_;
+                }
+                return buffer_;
             }
-            return (std::memcmp(data(), str, length) == 0);
-        }
 
-        char* data() noexcept
-        {
-            if (heap_block != nullptr) {
-                return heap_block;
+            void clear() noexcept
+            {
+                if (data_ != nullptr) {
+                    std::free(data_);
+                    data_ = nullptr;
+                }
+                buffer_[0] = '\0';
+                length_ = 0;
+                capacity_ = sizeof(buffer_);
             }
-            return stack_buffer;
-        }
 
-        const char* data() const noexcept
-        {
-            if (heap_block != nullptr) {
-                return heap_block;
+            size_t length() const noexcept
+            {
+                return length_;
             }
-            return stack_buffer;
-        }
 
-        void clear() noexcept
-        {
-            if (heap_block != nullptr) {
-                std::free(heap_block);
-                heap_block = nullptr;
-            }
-            stack_buffer[0] = '\0';
-            length = 0;
-            capacity = sizeof(stack_buffer);
-        }
+        private:
+            char buffer_[64];
+            char* data_;
+            size_t length_;
+            size_t capacity_;
     };
 
     class JSONObject;
     class JSONArray;
     class JSONItem;
 
-    namespace _JSON_Misc
+    inline _JSON_String _StringToJSONRaw(const std::string &str)
     {
-        inline char GetEscapeChar(const char &ch) noexcept
-        {
+        _JSON_String raw("\"");
+        for (const auto &ch : str) {
             switch (ch) {
-                case 'n':
-                    return '\n';
-                case 'r':
-                    return '\r';
-                case 't':
-                    return '\t';
-                case 'b':
-                    return '\b';
-                case 'f':
-                    return '\f';
-                case 'a':
-                    return '\a';
-                case 'v':
-                    return '\v';
+                case '\\':
+                    raw.append("\\\\");
+                    break;
+                case '\"':
+                    raw.append("\\\"");
+                    break;
+                case '\n':
+                    raw.append("\\n");
+                    break;
+                case '\t':
+                    raw.append("\\t");
+                    break;
+                case '\r':
+                    raw.append("\\r");
+                    break;
+                case '\f':
+                    raw.append("\\f");
+                    break;
+                case '\a':
+                    raw.append("\\a");
+                    break;
+                case '\b':
+                    raw.append("\\b");
+                    break;
+                case '\v':
+                    raw.append("\\v");
+                    break;
+                case '/':
+                    raw.append("\\/");
+                    break;
                 default:
+                    raw.append(ch);
                     break;
             }
-            return ch;
         }
-
-        inline _JSON_String StringToJSONRaw(const std::string &str)
-        {
-            _JSON_String raw("\"");
-            for (const auto &ch : str) {
-                switch (ch) {
-                    case '\\':
-                        raw.append("\\\\");
-                        break;
-                    case '\"':
-                        raw.append("\\\"");
-                        break;
-                    case '\n':
-                        raw.append("\\n");
-                        break;
-                    case '\t':
-                        raw.append("\\t");
-                        break;
-                    case '\r':
-                        raw.append("\\r");
-                        break;
-                    case '\f':
-                        raw.append("\\f");
-                        break;
-                    case '\a':
-                        raw.append("\\a");
-                        break;
-                    case '\b':
-                        raw.append("\\b");
-                        break;
-                    case '\v':
-                        raw.append("\\v");
-                        break;
-                    case '/':
-                        raw.append("\\/");
-                        break;
-                    default:
-                        raw.append(ch);
-                        break;
-                }
-            }
-            raw.append('\"');
-            return raw;
-        }
-
-        constexpr size_t npos = static_cast<size_t>(-1);
-
-        inline size_t FindChar(const char* str, char ch, size_t start_pos = 0) noexcept
-        {
-            for (auto pos = start_pos; *(str + pos) != '\0'; pos++) {
-                if (*(str + pos) == ch) {
-                    return pos;
-                }
-            }
-            return npos;
-        }
+        raw.append('\"');
+        return raw;
     }
 
     class JSONItem
@@ -281,7 +266,6 @@ namespace CU
             typedef std::variant<ItemNull, bool, int, int64_t, double, std::string, JSONArray*, JSONObject*> ItemValue;
 
             inline JSONItem();
-            inline JSONItem(const _JSON_String &raw);
             inline JSONItem(ItemNull _null);
             inline JSONItem(bool value);
             inline JSONItem(int value);
@@ -322,7 +306,7 @@ namespace CU
             inline std::string toString() const;
             inline JSONArray toArray() const;
             inline JSONObject toObject() const;
-            inline std::string toRaw() const;
+            inline _JSON_String toRaw() const;
 
             inline void clear();
             inline size_t size() const;
@@ -346,6 +330,7 @@ namespace CU
             inline JSONArray(iterator begin_iter, iterator end_iter);
             inline JSONArray(std::string_view jsonText);
             inline JSONArray(const std::vector<JSONItem> &data);
+            inline JSONArray(std::vector<JSONItem> &&data) noexcept;
             inline JSONArray(const JSONArray &other);
             inline JSONArray(JSONArray &&other) noexcept;
             inline ~JSONArray();
@@ -367,10 +352,15 @@ namespace CU
             inline size_t size() const;
             inline size_t hash() const;
             inline bool empty() const;
+            inline _JSON_String toRaw() const;
             inline std::string toString() const;
+
+            inline const std::vector<JSONItem> &data() const;
 
             inline JSONItem &front();
             inline JSONItem &back();
+            inline const JSONItem &front() const;
+            inline const JSONItem &back() const;
             inline iterator begin();
             inline iterator end();
             inline const_iterator begin() const;
@@ -406,8 +396,12 @@ namespace CU
             inline size_t size() const;
             inline size_t hash() const;
             inline bool empty() const;
+            inline _JSON_String toRaw() const;
             inline std::string toString() const;
             inline std::string toFormatedString() const;
+
+            inline const std::unordered_map<std::string, JSONItem> &data() const;
+            inline const std::vector<std::string> &order() const;
 
             struct JSONPair
             {
@@ -421,95 +415,418 @@ namespace CU
             std::vector<std::string> order_;
     };
 
-    inline JSONItem::JSONItem() :
-        type_(ItemType::ITEM_NULL),
-        value_(nullptr)
-    { }
-
-    inline JSONItem::JSONItem(const _JSON_String &raw) : type_(), value_()
+    namespace _JSON_Parse_Utils
     {
-        auto len = raw.length;
-        auto raw_data = raw.data();
-        switch (*raw_data) {
-            case '{':
-                if (*(raw_data + len - 1) == '}') {
-                    type_ = ItemType::OBJECT;
-                    value_ = new JSONObject(raw_data);
-                    return;
+        inline void ThrowSyntaxExcept(std::string_view message, std::string_view jsonText = "", size_t beginPos = 0) 
+        {
+            static const auto countLine = [](std::string_view jsonText, size_t beginPos) -> size_t {
+                if (beginPos > jsonText.size()) {
+                    return 0;
                 }
-                break;
-            case '[':
-                if (*(raw_data + len - 1) == ']') {
-                    type_ = ItemType::ARRAY;
-                    value_ = new JSONArray(raw_data);
-                    return;
-                }
-                break;
-            case '\"':
-                if (*(raw_data + len - 1) == '\"') {
-                    type_ = ItemType::STRING;
-                    value_ = std::string(raw_data).substr(1, (len - 2));
-                    return;
-                }
-                break;
-            case '-':
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-                if (_JSON_Misc::FindChar(raw_data, '.') != _JSON_Misc::npos) {
-                    type_ = ItemType::DOUBLE;
-                    value_ = std::strtod(raw_data, nullptr);
-                    return;
-                } else {
-                    auto num = std::strtoll(raw_data, nullptr, 10);
-                    if (num > std::numeric_limits<int>::max() || num < std::numeric_limits<int>::min()) {
-                        type_ = ItemType::LONG;
-                        value_ = static_cast<int64_t>(num);
-                        return;
-                    } else {
-                        type_ = ItemType::INTEGER;
-                        value_ = static_cast<int>(num);
-                        return;
+
+                size_t count = 0;
+                for (size_t pos = 0; pos < beginPos; pos++) {
+                    if (jsonText[pos] == '\n') {
+                        count++;
                     }
                 }
-                break;
-            case 't':
-                if (raw.equals("true")) {
-                    type_ = ItemType::BOOLEAN;
-                    value_ = true;
-                    return;
-                }
-                break;
-            case 'f':
-                if (raw.equals("false")) {
-                    type_ = ItemType::BOOLEAN;
-                    value_ = false;
-                    return;
-                }
-                break;
-            case 'n':
-                if (raw.equals("null")) {
-                    type_ = ItemType::ITEM_NULL;
-                    value_ = nullptr;
-                    return;
-                }
-                break;
-            default:
-                break;
+                return count;
+            };
+
+            if (jsonText.size() > 0) {
+                char except_msg[4096]{};
+                std::snprintf(except_msg, sizeof(except_msg), 
+                    "Invalid syntax on line %zu: %s", (countLine(jsonText, beginPos) + 1), message.data());
+                throw JSONExcept(except_msg);
+            }
+            throw JSONExcept(std::string("Invalid syntax: ") + message.data());
         }
-        throw JSONExcept("Invalid JSONItem");
+
+        template <typename _Ty>
+        struct Result 
+        {
+            _Ty resultVal;
+            size_t endPos;
+
+            Result() : resultVal(), endPos(-1) { }
+
+            Result(const Result &other) : resultVal(other.resultVal), endPos(other.endPos) { }
+
+            Result(Result &&other) noexcept : resultVal(std::move(other.resultVal)), endPos(other.endPos) { }
+        };
+
+        inline size_t IgnoreBlank(std::string_view jsonText, size_t beginPos) noexcept
+        {
+            static const auto isBlankChar = [](char ch) -> bool {
+                switch (ch) {
+                    case ' ':
+                    case '\n':
+                    case '\t':
+                    case '\r':
+                    case '\f':
+                    case '\a':
+                    case '\b':
+                    case '\v':
+                        return true;
+                    default:
+                        break;
+                }
+                return false;
+            };
+
+            for (auto pos = beginPos; pos < jsonText.size(); pos++) {
+                if (!isBlankChar(jsonText[pos])) {
+                    return pos;
+                }
+            }
+            return std::string_view::npos;
+        }
+
+        inline Result<JSONArray> ParseJSONArray(std::string_view jsonText, size_t beginPos);
+
+        inline Result<JSONObject> ParseJSONObject(std::string_view jsonText, size_t beginPos);
+
+        inline Result<_JSON_String> ParseEscapeChar(std::string_view jsonText, size_t beginPos)
+        {
+            static const auto parseUnicode = [](std::string_view jsonText, size_t beginPos) -> _JSON_String
+            {
+                static constexpr int utf8bit_max = 0x7F;
+                static constexpr int utf16bit_max = 0x7FF;
+                static constexpr int utf24bit_max = 0xFFFF;
+                static constexpr int utf32bit_max = 0x10FFFF;
+
+                if (jsonText.size() >= (beginPos + 4)) {
+                    int unicodeVal = std::strtol(jsonText.substr(beginPos, 4).data(), nullptr, 16);
+                    if (unicodeVal <= utf8bit_max) {
+                        char unicodeChar[2]{};
+                        unicodeChar[0] = static_cast<char>(unicodeVal);
+                        return unicodeChar;
+                    } else if (unicodeVal <= utf16bit_max) {
+                        char unicodeChar[3]{};
+                        unicodeChar[0] = static_cast<char>(0xC0 | ((unicodeVal >> 6) & 0x1F));
+                        unicodeChar[1] = static_cast<char>(0x80 | (unicodeVal & 0x3F));
+                        return unicodeChar;
+                    } else if (unicodeVal <= utf24bit_max) {
+                        char unicodeChar[4]{};
+                        unicodeChar[0] = static_cast<char>(0xE0 | ((unicodeVal >> 12) & 0x0F));
+                        unicodeChar[1] = static_cast<char>(0x80 | ((unicodeVal >> 6) & 0x3F));
+                        unicodeChar[2] = static_cast<char>(0x80 | (unicodeVal & 0x3F));
+                        return unicodeChar;
+                    } else if (unicodeVal <= utf32bit_max) {
+                        char unicodeChar[5]{};
+                        unicodeChar[0] = static_cast<char>(0xF0 | ((unicodeVal >> 18) & 0x07));
+                        unicodeChar[1] = static_cast<char>(0x80 | ((unicodeVal >> 12) & 0x3F));
+                        unicodeChar[2] = static_cast<char>(0x80 | ((unicodeVal >> 6) & 0x3F));
+                        unicodeChar[3] = static_cast<char>(0x80 | (unicodeVal & 0x3F));
+                        return unicodeChar;
+                    }
+                }
+
+                ThrowSyntaxExcept("faild to parse unicode escape char", jsonText, beginPos);
+                return {};
+            };
+
+            if (jsonText[beginPos] != '\\') {
+                return {};
+            }
+
+            Result<_JSON_String> charResult{};
+            auto pos = beginPos + 1;
+            switch (jsonText[pos]) {
+                case 'n':
+                    charResult.resultVal.append('\n');
+                    pos++;
+                    break;
+                case 'r':
+                    charResult.resultVal.append('\r');
+                    pos++;
+                    break;
+                case 't':
+                    charResult.resultVal.append('\t');
+                    pos++;
+                    break;
+                case 'b':
+                    charResult.resultVal.append('\b');
+                    pos++;
+                    break;
+                case 'f':
+                    charResult.resultVal.append('\f');
+                    pos++;
+                    break;
+                case 'a':
+                    charResult.resultVal.append('\a');
+                    pos++;
+                    break;
+                case 'v':
+                    charResult.resultVal.append('\v');
+                    pos++;
+                    break;
+                case '/':
+                    charResult.resultVal.append('/');
+                    pos++;
+                    break;
+                case '\\':
+                    charResult.resultVal.append('\\');
+                    pos++;
+                    break;
+                case '\"':
+                    charResult.resultVal.append('\"');
+                    pos++;
+                    break;
+                case '\'':
+                    charResult.resultVal.append('\'');
+                    pos++;
+                    break;
+                case 'u':
+                    pos++;
+                    charResult.resultVal.append(parseUnicode(jsonText, pos).data());
+                    pos += 4;
+                    break;
+                default:
+                    ThrowSyntaxExcept("unknown escape char", jsonText, pos);
+                    break;
+            }
+            charResult.endPos = pos;
+            return charResult;
+        }
+
+        inline Result<_JSON_String> ParseJSONString(std::string_view jsonText, size_t beginPos)
+        {
+            auto pos = IgnoreBlank(jsonText, beginPos);
+            if (jsonText[pos] != '\"') {
+                ThrowSyntaxExcept("JSON String must begin with \'\"\'", jsonText, beginPos);
+            }
+            pos++;
+
+            Result<_JSON_String> stringResult{};
+            while (pos < jsonText.size()) {
+                if (jsonText[pos] == '\"') {
+                    break;
+                } else if (jsonText[pos] == '\\') {
+                    auto charResult = ParseEscapeChar(jsonText, pos);
+                    stringResult.resultVal.append(charResult.resultVal.data());
+                    pos = charResult.endPos;
+                } else {
+                    stringResult.resultVal.append(jsonText[pos]);
+                    pos++;
+                }
+            }
+            if (pos >= jsonText.size()) {
+                ThrowSyntaxExcept("JSON String must end with \'\"\'", jsonText, beginPos);
+            }
+
+            stringResult.endPos = pos + 1;
+            return stringResult;
+        }
+
+        inline Result<JSONItem> ParseJSONItem(std::string_view jsonText, size_t beginPos)
+        {
+            static const auto compareText = 
+                [](std::string_view text, size_t beginPos, std::string_view cmpText) -> bool 
+            {
+                if ((beginPos + cmpText.size()) >= text.size()) {
+                    return false;
+                }
+                return (std::memcmp(&text[beginPos], cmpText.data(), cmpText.size()) == 0);
+            };
+            static const auto splitNumberText = [](std::string_view text, size_t beginPos) -> _JSON_String {
+                _JSON_String numberText{};
+                for (auto pos = beginPos; pos < text.size(); pos++) {
+                    switch (text[pos]) {
+                        case '-':
+                        case '+':
+                        case '.':
+                        case '0':
+                        case '1':
+                        case '2':
+                        case '3':
+                        case '4':
+                        case '5':
+                        case '6':
+                        case '7':
+                        case '8':
+                        case '9':
+                        case 'e':
+                        case 'E':
+                            numberText.append(text[pos]);
+                            break;
+                        default:
+                            return numberText;
+                    }
+                }
+                return numberText;
+            };
+
+            Result<JSONItem> itemResult{};
+            auto pos = IgnoreBlank(jsonText, beginPos);
+            switch (jsonText[pos]) {
+                case '{':
+                    {
+                        auto objectResult = ParseJSONObject(jsonText, pos);
+                        itemResult.resultVal = std::move(objectResult.resultVal);
+                        itemResult.endPos = objectResult.endPos;
+                    }
+                    break;
+                case '[':
+                    {
+                        auto arrayResult = ParseJSONArray(jsonText, pos);
+                        itemResult.resultVal = std::move(arrayResult.resultVal);
+                        itemResult.endPos = arrayResult.endPos;
+                    }
+                    break;
+                case '\"':
+                    {
+                        auto stringResult = ParseJSONString(jsonText, pos);
+                        itemResult.resultVal = stringResult.resultVal.data();
+                        itemResult.endPos = stringResult.endPos;
+                    }
+                    break;
+                case '-':
+                case '+':
+                case '0':
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                    {
+                        auto numberText = splitNumberText(jsonText, pos);
+                        if (std::string_view(numberText.data()).find('.') != std::string_view::npos) {
+                            itemResult.resultVal = std::strtod(numberText.data(), nullptr);
+                        } else {
+                            auto number = std::strtoll(numberText.data(), nullptr, 10);
+                            if (number >= std::numeric_limits<int>::min() && number <= std::numeric_limits<int>::max()) {
+                                itemResult.resultVal = static_cast<int>(number);
+                            } else {
+                                itemResult.resultVal = number;
+                            }
+                        }
+                        itemResult.endPos = pos + numberText.length();
+                    }
+                    break;
+                case 'n':
+                    if (compareText(jsonText, pos, "null")) {
+                        itemResult.resultVal = JSONItem::ItemNull();
+                        itemResult.endPos = pos + 4;
+                    }
+                    break;
+                case 't':
+                    if (compareText(jsonText, pos, "true")) {
+                        itemResult.resultVal = true;
+                        itemResult.endPos = pos + 4;
+                    }
+                    break;
+                case 'f':
+                    if (compareText(jsonText, pos, "false")) {
+                        itemResult.resultVal = false;
+                        itemResult.endPos = pos + 5;
+                    }
+                    break;
+                default:
+                    ThrowSyntaxExcept("unknown JSON Item", jsonText, pos);
+                    break;
+            }
+            return itemResult;
+        }
+
+        inline Result<JSONArray> ParseJSONArray(std::string_view jsonText, size_t beginPos)
+        {
+            auto pos = IgnoreBlank(jsonText, beginPos);
+            if (jsonText[pos] != '[') {
+                ThrowSyntaxExcept("JSON Array must begin with \'[\'", jsonText, beginPos);
+            }
+
+            pos = IgnoreBlank(jsonText, (pos + 1));
+            if (jsonText[pos] == ']') {
+                Result<JSONArray> arrayResult{};
+                arrayResult.endPos = pos + 1;
+                return arrayResult;
+            }
+
+            std::vector<JSONItem> array{};
+            while (pos < jsonText.size()) {
+                auto itemResult = ParseJSONItem(jsonText, IgnoreBlank(jsonText, pos));
+                array.emplace_back(std::move(itemResult.resultVal));
+
+                pos = IgnoreBlank(jsonText, itemResult.endPos);
+                if (jsonText[pos] == ']') {
+                    break;
+                } else if (jsonText[pos] == ',') {
+                    pos++;
+                } else {
+                    ThrowSyntaxExcept("JSON Array elements must be separated by \',\'", jsonText, pos);
+                }
+            }
+            if (pos >= jsonText.size()) {
+                ThrowSyntaxExcept("JSON Array must end with \']\'", jsonText, beginPos);
+            }
+
+            Result<JSONArray> arrayResult{};
+            arrayResult.resultVal = std::move(array);
+            arrayResult.endPos = pos + 1;
+            return arrayResult;
+        }
+
+        inline Result<JSONObject> ParseJSONObject(std::string_view jsonText, size_t beginPos)
+        {
+            auto pos = IgnoreBlank(jsonText, beginPos);
+            if (jsonText[pos] != '{') {
+                ThrowSyntaxExcept("JSON Object must begin with \'{\'", jsonText, pos);
+            }
+
+            pos = IgnoreBlank(jsonText, (pos + 1));
+            if (jsonText[pos] == '}') {
+                Result<JSONObject> objectResult{};
+                objectResult.endPos = pos + 1;
+                return objectResult;
+            }
+
+            std::unordered_map<std::string, JSONItem> data{};
+            std::vector<std::string> order{};
+            while (pos < jsonText.size()) {
+                auto stringResult = ParseJSONString(jsonText, IgnoreBlank(jsonText, pos));
+
+                pos = IgnoreBlank(jsonText, stringResult.endPos);
+                if (jsonText[pos] != ':') {
+                    ThrowSyntaxExcept("key and value must be separated by \':\'", jsonText, pos);
+                }
+
+                auto itemResult = ParseJSONItem(jsonText, IgnoreBlank(jsonText, (pos + 1)));
+                data.emplace(stringResult.resultVal.data(), std::move(itemResult.resultVal));
+                order.emplace_back(stringResult.resultVal.data());
+
+                pos = IgnoreBlank(jsonText, itemResult.endPos);
+                if (jsonText[pos] == '}') {
+                    break;
+                } else if (jsonText[pos] == ',') {
+                    pos++;
+                } else {
+                    ThrowSyntaxExcept("JSON Object elements must be separated by \',\'", jsonText, pos);
+                }
+            }
+            if (pos >= jsonText.size()) {
+                ThrowSyntaxExcept("JSON Object must end with \'}\'", jsonText, beginPos);
+            }
+
+            Result<JSONObject> objectResult{};
+            objectResult.resultVal = JSONObject(std::move(data), std::move(order));
+            objectResult.endPos = pos + 1;
+            return objectResult;
+        }
     }
+
+    inline JSONItem::JSONItem() :
+        type_(ItemType::ITEM_NULL),
+        value_(ItemNull())
+    { }
 
     inline JSONItem::JSONItem(ItemNull _null) :
         type_(ItemType::ITEM_NULL),
-        value_(nullptr)
+        value_(ItemNull())
     {
         (void)_null;
     }
@@ -746,7 +1063,7 @@ namespace CU
         return *(std::get<JSONObject*>(value_));
     }
 
-    inline std::string JSONItem::toRaw() const
+    inline _JSON_String JSONItem::toRaw() const
     {
         switch (type_) {
             case ItemType::ITEM_NULL:
@@ -757,17 +1074,29 @@ namespace CU
                 }
                 return "false";
             case ItemType::INTEGER:
-                return std::to_string(std::get<int>(value_));
+                {
+                    char buffer[32]{};
+                    std::snprintf(buffer, sizeof(buffer), "%d", std::get<int>(value_));
+                    return buffer;
+                }
             case ItemType::LONG:
-                return std::to_string(std::get<int64_t>(value_));
+                {
+                    char buffer[32]{};
+                    std::snprintf(buffer, sizeof(buffer), ("%" PRId64) , std::get<int64_t>(value_));
+                    return buffer;
+                }
             case ItemType::DOUBLE:
-                return std::to_string(std::get<double>(value_));
+                {
+                    char buffer[32]{};
+                    std::snprintf(buffer, sizeof(buffer), "%.8f", std::get<double>(value_));
+                    return buffer;
+                }
             case ItemType::STRING:
-                return _JSON_Misc::StringToJSONRaw(std::get<std::string>(value_)).data();
+                return _StringToJSONRaw(std::get<std::string>(value_));
             case ItemType::ARRAY:
-                return std::get<JSONArray*>(value_)->toString();
+                return std::get<JSONArray*>(value_)->toRaw();
             case ItemType::OBJECT:
-                return std::get<JSONObject*>(value_)->toString();
+                return std::get<JSONObject*>(value_)->toRaw();
             default:
                 break;
         }
@@ -855,153 +1184,14 @@ namespace CU
 
     inline JSONArray::JSONArray(std::string_view jsonText) : data_()
     {
-        enum class ArrayIdx : uint8_t {NONE, ITEM_FRONT, ITEM_COMMON, ITEM_STRING, ITEM_ARRAY, ITEM_OBJECT, ITEM_BACK};
-        size_t pos = 0;
-        auto idx = ArrayIdx::NONE;
-        uint32_t count = 0;
-        _JSON_String content{};
-        while (pos < jsonText.size()) {
-            char ch = jsonText[pos];
-            switch (ch) {
-                case '[':
-                    if (idx == ArrayIdx::NONE) {
-                        idx = ArrayIdx::ITEM_FRONT;
-                    } else if (idx == ArrayIdx::ITEM_FRONT) {
-                        idx = ArrayIdx::ITEM_ARRAY;
-                        count = 1;
-                        content.append(ch);
-                    } else if (idx == ArrayIdx::ITEM_ARRAY) {
-                        count++;
-                        content.append(ch);
-                    } else if (idx == ArrayIdx::ITEM_STRING || idx == ArrayIdx::ITEM_OBJECT) {
-                        content.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONArray Structure");
-                    }
-                    break;
-                case ']':
-                    if (idx == ArrayIdx::ITEM_BACK || idx == ArrayIdx::ITEM_COMMON) {
-                        idx = ArrayIdx::NONE;
-                    } else if (idx == ArrayIdx::ITEM_FRONT && data_.empty()) {
-                        idx = ArrayIdx::NONE;
-                    } else if (idx == ArrayIdx::ITEM_ARRAY) {
-                        if (count > 0) {
-                            count--;
-                            content.append(ch);
-                            if (count == 0) {
-                                idx = ArrayIdx::ITEM_BACK;
-                            }
-                        } else {
-                            throw JSONExcept("Invalid JSONArray Structure");
-                        }
-                    } else if (idx == ArrayIdx::ITEM_STRING || idx == ArrayIdx::ITEM_OBJECT) {
-                        content.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONArray Structure");
-                    }
-                    break;
-                case ',':
-                    if (idx == ArrayIdx::ITEM_BACK || idx == ArrayIdx::ITEM_COMMON) {
-                        idx = ArrayIdx::ITEM_FRONT;
-                    } else if (idx == ArrayIdx::ITEM_STRING || idx == ArrayIdx::ITEM_ARRAY || idx == ArrayIdx::ITEM_OBJECT) {
-                        content.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONArray Structure");
-                    }
-                    break;
-                case '{':
-                    if (idx == ArrayIdx::ITEM_FRONT) {
-                        idx = ArrayIdx::ITEM_OBJECT;
-                        count = 1;
-                        content.append(ch);
-                    } else if (idx == ArrayIdx::ITEM_OBJECT) {
-                        count++;
-                        content.append(ch);
-                    } else if (idx == ArrayIdx::ITEM_STRING || idx == ArrayIdx::ITEM_ARRAY) {
-                        content.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONArray Structure");
-                    }
-                    break;
-                case '}':
-                    if (idx == ArrayIdx::ITEM_OBJECT) {
-                        if (count > 0) {
-                            count--;
-                            content.append(ch);
-                            if (count == 0) {
-                                idx = ArrayIdx::ITEM_BACK;
-                            }
-                        } else {
-                            throw JSONExcept("Invalid JSONArray Structure");
-                        }
-                    } else if (idx == ArrayIdx::ITEM_STRING || idx == ArrayIdx::ITEM_ARRAY) {
-                        content.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONArray Structure");
-                    }
-                    break;
-                case '\"':
-                    if (idx == ArrayIdx::ITEM_FRONT) {
-                        idx = ArrayIdx::ITEM_STRING;
-                        content.append(ch);
-                    } else if (idx == ArrayIdx::ITEM_STRING) {
-                        idx = ArrayIdx::ITEM_BACK;
-                        content.append(ch);
-                    } else if (idx == ArrayIdx::ITEM_ARRAY || idx == ArrayIdx::ITEM_OBJECT) {
-                        content.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONArray Structure");
-                    }
-                    break;
-                case ' ':
-                    if (idx == ArrayIdx::ITEM_STRING || idx == ArrayIdx::ITEM_ARRAY || idx == ArrayIdx::ITEM_OBJECT) {
-                        content.append(ch);
-                    }
-                    break;
-                case '\n':
-                case '\t':
-                case '\r':
-                case '\f':
-                case '\a':
-                case '\b':
-                case '\v':
-                    break;
-                case '\\':
-                    if (idx == ArrayIdx::ITEM_STRING) {
-                        if ((pos + 1) >= jsonText.size()) {
-                            throw JSONExcept("Invalid JSONArray Structure");
-                        }
-                        pos++;
-                        content.append(_JSON_Misc::GetEscapeChar(jsonText[pos]));
-                    } else if (idx == ArrayIdx::ITEM_ARRAY || idx == ArrayIdx::ITEM_OBJECT) {
-                        content.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONArray Structure");
-                    }
-                    break;
-                default:
-                    if (idx == ArrayIdx::ITEM_FRONT) {
-                        idx = ArrayIdx::ITEM_COMMON;
-                        content.append(ch);
-                    } else if (idx != ArrayIdx::NONE && idx != ArrayIdx::ITEM_BACK) {
-                        content.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONArray Structure");
-                    }
-                    break;
-            }
-            if ((idx == ArrayIdx::ITEM_FRONT || idx == ArrayIdx::NONE) && content.length > 0) {
-                data_.emplace_back(JSONItem(content));
-                content.shrink(0);
-            }
-            pos++;
-        }
-        if (idx != ArrayIdx::NONE) {
-            throw JSONExcept("Invalid JSONArray Structure");
-        }
+        auto arrayResult = _JSON_Parse_Utils::ParseJSONArray(jsonText, 0);
+        auto array = std::move(arrayResult.resultVal);
+        data_ = std::move(array.data_);
     }
 
     inline JSONArray::JSONArray(const std::vector<JSONItem> &data) : data_(data) { }
+
+    inline JSONArray::JSONArray(std::vector<JSONItem> &&data) noexcept : data_(data) { }
 
     inline JSONArray::JSONArray(const JSONArray &other) : data_(other.data_) { }
 
@@ -1029,7 +1219,7 @@ namespace CU
     {
         if (std::addressof(other) != this) {
             const auto &other_data = other.data_;
-            for (auto iter = other_data.begin(); iter < other_data.end(); iter++) {
+            for (auto iter = other_data.begin(); iter < other_data.end(); ++iter) {
                 data_.emplace_back(*iter);
             }
         }
@@ -1041,7 +1231,7 @@ namespace CU
         auto merged_data = data_;
         if (std::addressof(other) != this) {
             const auto &other_data = other.data_;
-            for (auto iter = other_data.begin(); iter < other_data.end(); iter++) {
+            for (auto iter = other_data.begin(); iter < other_data.end(); ++iter) {
                 merged_data.emplace_back(*iter);
             }
         }
@@ -1125,21 +1315,34 @@ namespace CU
         return (data_.begin() == data_.end());
     }
 
-    inline std::string JSONArray::toString() const
+    inline _JSON_String JSONArray::toRaw() const
     {
         if (data_.begin() == data_.end()) {
-            std::string JSONText("[]");
-            return JSONText;
+            return "[]";
         } else if ((data_.begin() + 1) == data_.end()) {
-            auto JSONText = std::string("[") + data_.front().toRaw() + "]";
-            return JSONText;
+            _JSON_String jsonText("[");
+            jsonText.append(data_.front().toRaw().data());
+            jsonText.append(']');
+            return jsonText;
         }
-        std::string JSONText("[");
-        for (auto iter = data_.begin(); iter < (data_.end() - 1); iter++) {
-            JSONText += iter->toRaw() + ",";
+        _JSON_String jsonText("[");
+        for (auto iter = data_.begin(); iter < (data_.end() - 1); ++iter) {
+            jsonText.append((iter->toRaw()).data());
+            jsonText.append(',');
         }
-        JSONText += data_.back().toRaw() + "]";
-        return JSONText;
+        jsonText.append(data_.back().toRaw().data());
+        jsonText.append(']');
+        return jsonText;
+    }
+
+    inline std::string JSONArray::toString() const
+    {
+        return toRaw().data();
+    }
+
+    inline const std::vector<JSONItem> &JSONArray::data() const
+    {
+        return data_;
     }
 
     inline JSONItem &JSONArray::front()
@@ -1148,6 +1351,16 @@ namespace CU
     }
 
     inline JSONItem &JSONArray::back()
+    {
+        return data_.back();
+    }
+
+    inline const JSONItem &JSONArray::front() const
+    {
+        return data_.front();
+    }
+
+    inline const JSONItem &JSONArray::back() const
     {
         return data_.back();
     }
@@ -1176,190 +1389,10 @@ namespace CU
 
     inline JSONObject::JSONObject(std::string_view jsonText) : data_(), order_()
     {
-        enum class ObjectIdx : uint8_t
-        {NONE, KEY_FRONT, KEY_CONTENT, KEY_BACK, VALUE_FRONT, VALUE_COMMON, VALUE_STRING, VALUE_ARRAY, VALUE_OBJECT, VALUE_BACK};
-        size_t pos = 0;
-        auto idx = ObjectIdx::NONE;
-        uint32_t count = 0;
-        _JSON_String key{}, value{};
-        while (pos < jsonText.size()) {
-            char ch = jsonText[pos];
-            switch (ch) {
-                case '{':
-                    if (idx == ObjectIdx::NONE) {
-                        idx = ObjectIdx::KEY_FRONT;
-                    } else if (idx == ObjectIdx::VALUE_FRONT) {
-                        idx = ObjectIdx::VALUE_OBJECT;
-                        count = 1;
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::VALUE_OBJECT) {
-                        count++;
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::VALUE_STRING || idx == ObjectIdx::VALUE_ARRAY) {
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::KEY_CONTENT) {
-                        key.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONObject Structure");
-                    }
-                    break;
-                case '}':
-                    if (idx == ObjectIdx::KEY_FRONT && data_.empty()) {
-                        idx = ObjectIdx::NONE;
-                    } else if (idx == ObjectIdx::VALUE_OBJECT) {
-                        if (count > 0) {
-                            count--;
-                            value.append(ch);
-                            if (count == 0) {
-                                idx = ObjectIdx::VALUE_BACK;
-                            }
-                        } else {
-                            throw JSONExcept("Invalid JSONObject Structure");
-                        }
-                    } else if (idx == ObjectIdx::VALUE_BACK || idx == ObjectIdx::VALUE_COMMON) {
-                        idx = ObjectIdx::NONE;
-                    } else if (idx == ObjectIdx::VALUE_STRING || idx == ObjectIdx::VALUE_ARRAY) {
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::KEY_CONTENT) {
-                        key.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONObject Structure");
-                    }
-                    break;
-                case '\"':
-                    if (idx == ObjectIdx::KEY_FRONT) {
-                        idx = ObjectIdx::KEY_CONTENT;
-                    } else if (idx == ObjectIdx::KEY_CONTENT) {
-                        idx = ObjectIdx::KEY_BACK;
-                    } else if (idx == ObjectIdx::VALUE_FRONT) {
-                        idx = ObjectIdx::VALUE_STRING;
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::VALUE_STRING) {
-                        idx = ObjectIdx::VALUE_BACK;
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::VALUE_ARRAY || idx == ObjectIdx::VALUE_OBJECT) {
-                        value.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONObject Structure");
-                    }
-                    break;
-                case ':':
-                    if (idx == ObjectIdx::KEY_BACK) {
-                        idx = ObjectIdx::VALUE_FRONT;
-                    } else if (idx == ObjectIdx::VALUE_STRING || idx == ObjectIdx::VALUE_ARRAY || idx == ObjectIdx::VALUE_OBJECT) {
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::KEY_CONTENT) {
-                        key.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONObject Structure");
-                    }
-                    break;
-                case ',':
-                    if (idx == ObjectIdx::VALUE_COMMON || idx == ObjectIdx::VALUE_BACK) {
-                        idx = ObjectIdx::KEY_FRONT;
-                    } else if (idx == ObjectIdx::VALUE_STRING || idx == ObjectIdx::VALUE_ARRAY || idx == ObjectIdx::VALUE_OBJECT) {
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::KEY_CONTENT) {
-                        key.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONObject Structure");
-                    }
-                    break;
-                case '[':
-                    if (idx == ObjectIdx::VALUE_FRONT) {
-                        idx = ObjectIdx::VALUE_ARRAY;
-                        count = 1;
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::VALUE_ARRAY) {
-                        count++;
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::VALUE_STRING || idx == ObjectIdx::VALUE_OBJECT) {
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::KEY_CONTENT) {
-                        key.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONObject Structure");
-                    }
-                    break;
-                case ']':
-                    if (idx == ObjectIdx::VALUE_ARRAY) {
-                        if (count > 0) {
-                            count--;
-                            value.append(ch);
-                            if (count == 0) {
-                                idx = ObjectIdx::VALUE_BACK;
-                            }
-                        } else {
-                            throw JSONExcept("Invalid JSONObject Structure");
-                        }
-                    } else if (idx == ObjectIdx::VALUE_STRING || idx == ObjectIdx::VALUE_OBJECT) {
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::KEY_CONTENT) {
-                        key.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONObject Structure");
-                    }
-                    break;
-                case ' ':
-                    if (idx == ObjectIdx::VALUE_STRING || idx == ObjectIdx::VALUE_ARRAY || idx == ObjectIdx::VALUE_OBJECT) {
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::KEY_CONTENT) {
-                        key.append(ch);
-                    }
-                    break;
-                case '\n':
-                case '\t':
-                case '\r':
-                case '\f':
-                case '\a':
-                case '\b':
-                case '\v':
-                    break;
-                case '\\':
-                    if (idx == ObjectIdx::KEY_CONTENT) {
-                        if ((pos + 1) >= jsonText.size()) {
-                            throw JSONExcept("Invalid JSONObject Structure");
-                        }
-                        pos++;
-                        key.append(_JSON_Misc::GetEscapeChar(jsonText[pos]));
-                    } else if (idx == ObjectIdx::VALUE_STRING) {
-                        if ((pos + 1) >= jsonText.size()) {
-                            throw JSONExcept("Invalid JSONObject Structure");
-                        }
-                        pos++;
-                        value.append(_JSON_Misc::GetEscapeChar(jsonText[pos]));
-                    } else if (idx == ObjectIdx::VALUE_ARRAY || idx == ObjectIdx::VALUE_OBJECT) {
-                        value.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONObject Structure");
-                    }
-                    break;
-                default:
-                    if (idx == ObjectIdx::VALUE_FRONT) {
-                        idx = ObjectIdx::VALUE_COMMON;
-                        value.append(ch);
-                    } else if (idx == ObjectIdx::KEY_CONTENT) {
-                        key.append(ch);
-                    } else if (idx == ObjectIdx::VALUE_COMMON || idx == ObjectIdx::VALUE_STRING ||
-                        idx == ObjectIdx::VALUE_ARRAY || idx == ObjectIdx::VALUE_OBJECT
-                    ) {
-                        value.append(ch);
-                    } else {
-                        throw JSONExcept("Invalid JSONObject Structure");
-                    }
-                    break;
-            }
-            if ((idx == ObjectIdx::KEY_FRONT || idx == ObjectIdx::NONE) && key.length > 0 && value.length > 0) {
-                order_.emplace_back(key.data());
-                data_.emplace(key.data(), JSONItem(value));
-                key.shrink(0);
-                value.shrink(0);
-            }
-            pos++;
-        }
-        if (idx != ObjectIdx::NONE) {
-            throw JSONExcept("Invalid JSONObject Structure");
-        }
+        auto objectResult = _JSON_Parse_Utils::ParseJSONObject(jsonText, 0);
+        auto object = std::move(objectResult.resultVal);
+        data_ = std::move(object.data_);
+        order_ = std::move(object.order_);
     }
 
     inline JSONObject::JSONObject(const JSONObject &other) :
@@ -1495,7 +1528,7 @@ namespace CU
     inline size_t JSONObject::hash() const
     {
         size_t hashVal = data_.size();
-        for (auto iter = data_.begin(); iter != data_.end(); iter++) {
+        for (auto iter = data_.begin(); iter != data_.end(); ++iter) {
             hashVal ^= (iter->second).hash() + 2654435769 + (hashVal << 6) + (hashVal >> 2);
         }
         return hashVal;
@@ -1506,60 +1539,75 @@ namespace CU
         return (data_.begin() == data_.end());
     }
 
-    inline std::string JSONObject::toString() const
+    inline _JSON_String JSONObject::toRaw() const
     {
         if (order_.size() == 1) {
             _JSON_String jsonText("{");
-            jsonText.append(_JSON_Misc::StringToJSONRaw(order_.front()));
+            jsonText.append(_StringToJSONRaw(order_.front()));
             jsonText.append(':');
             jsonText.append(data_.at(order_.front()).toRaw().data());
             jsonText.append('}');
-            return jsonText.data();
+            return jsonText;
         } else if (order_.size() > 1) {
             _JSON_String jsonText("{");
-            for (auto iter = order_.begin(); iter < (order_.end() - 1); iter++) {
+            for (auto iter = order_.begin(); iter < (order_.end() - 1); ++iter) {
                 const auto &key = *iter;
-                jsonText.append(_JSON_Misc::StringToJSONRaw(key));
+                jsonText.append(_StringToJSONRaw(key));
                 jsonText.append(':');
                 jsonText.append(data_.at(key).toRaw().data());
                 jsonText.append(',');
             }
-            jsonText.append(_JSON_Misc::StringToJSONRaw(order_.back()));
+            jsonText.append(_StringToJSONRaw(order_.back()));
             jsonText.append(':');
             jsonText.append(data_.at(order_.back()).toRaw().data());
             jsonText.append('}');
-            return jsonText.data();
+            return jsonText;
         }
         return "{}";
+    }
+
+    inline std::string JSONObject::toString() const
+    {
+        return toRaw().data();
     }
 
     inline std::string JSONObject::toFormatedString() const
     {
         if (order_.size() == 1) {
             _JSON_String jsonText("{\n");
-            jsonText.append(_JSON_Misc::StringToJSONRaw(order_.front()));
+            jsonText.append(_StringToJSONRaw(order_.front()));
             jsonText.append(": ");
             jsonText.append(data_.at(order_.front()).toRaw().data());
             jsonText.append("\n }");
             return jsonText.data();
         } else if (order_.size() > 1) {
             _JSON_String jsonText("{\n");
-            for (auto iter = order_.begin(); iter < (order_.end() - 1); iter++) {
+            for (auto iter = order_.begin(); iter < (order_.end() - 1); ++iter) {
                 const auto &key = *iter;
                 jsonText.append("  ");
-                jsonText.append(_JSON_Misc::StringToJSONRaw(key));
+                jsonText.append(_StringToJSONRaw(key));
                 jsonText.append(": ");
                 jsonText.append(data_.at(key).toRaw().data());
                 jsonText.append(",\n");
             }
             jsonText.append("  ");
-            jsonText.append(_JSON_Misc::StringToJSONRaw(order_.back()));
+            jsonText.append(_StringToJSONRaw(order_.back()));
             jsonText.append(": ");
             jsonText.append(data_.at(order_.back()).toRaw().data());
             jsonText.append("\n}");
             return jsonText.data();
         }
         return "{ }";
+    }
+
+    inline const std::unordered_map<std::string, JSONItem> &JSONObject::data() const
+    {
+        return data_;
+    }
+
+    inline const std::vector<std::string> &JSONObject::order() const
+    {
+        return order_;
     }
 
     inline std::vector<JSONObject::JSONPair> JSONObject::toPairs() const
@@ -1776,7 +1824,9 @@ namespace CU
 
         inline CU::JSONArray _BinaryToArray(const byte_t* binary)
         {
-            static const auto addItem = [](JSONArray &array, const byte_t* binary, pos_t block_offset) -> pos_t {
+            static const auto addItem = 
+                [](std::vector<JSONItem> &arrayData, const byte_t* binary, pos_t block_offset) -> pos_t 
+            {
                 auto block_size = *reinterpret_cast<const pos_t*>(_Move_Ptr(binary, block_offset));
                 if (block_size == npos) {
                     return npos;
@@ -1785,28 +1835,28 @@ namespace CU
                 auto data = _Move_Ptr(binary, (block_offset + sizeof(block_size) + sizeof(type)));
                 switch (type) {
                     case JSONItem::ItemType::ITEM_NULL:
-                        array.add(nullptr);
+                        arrayData.emplace_back(nullptr);
                         break;
                     case JSONItem::ItemType::BOOLEAN:
-                        array.add(*reinterpret_cast<const bool*>(data));
+                        arrayData.emplace_back(*reinterpret_cast<const bool*>(data));
                         break;
                     case JSONItem::ItemType::INTEGER:
-                        array.add(*reinterpret_cast<const int*>(data));
+                        arrayData.emplace_back(*reinterpret_cast<const int*>(data));
                         break;
                     case JSONItem::ItemType::LONG:
-                        array.add(*reinterpret_cast<const int64_t*>(data));
+                        arrayData.emplace_back(*reinterpret_cast<const int64_t*>(data));
                         break;
                     case JSONItem::ItemType::DOUBLE:
-                        array.add(*reinterpret_cast<const double*>(data));
+                        arrayData.emplace_back(*reinterpret_cast<const double*>(data));
                         break;
                     case JSONItem::ItemType::STRING:
-                        array.add(reinterpret_cast<const char*>(data));
+                        arrayData.emplace_back(reinterpret_cast<const char*>(data));
                         break;
                     case JSONItem::ItemType::ARRAY:
-                        array.add(_BinaryToArray(reinterpret_cast<const byte_t*>(data)));
+                        arrayData.emplace_back(_BinaryToArray(reinterpret_cast<const byte_t*>(data)));
                         break;
                     case JSONItem::ItemType::OBJECT:
-                        array.add(_BinaryToObject(reinterpret_cast<const byte_t*>(data)));
+                        arrayData.emplace_back(_BinaryToObject(reinterpret_cast<const byte_t*>(data)));
                         break;
                     default:
                         break;
@@ -1814,12 +1864,12 @@ namespace CU
                 return (block_offset + block_size);
             };
 
-            JSONArray array{};
+            std::vector<JSONItem> arrayData{};
             pos_t size = _GetBinarySize(binary), offset = sizeof(pos_t);
             while (offset < size) {
-                offset = addItem(array, binary, offset);
+                offset = addItem(arrayData, binary, offset);
             }
-            return array;
+            return JSONArray(std::move(arrayData));
         }
 
         inline void SaveArray(const std::string &path, const JSONArray &array)
@@ -1958,9 +2008,10 @@ namespace CU
                 pos_t binary_size = sizeof(pos_t);
                 container.add(std::addressof(binary_size), sizeof(binary_size));
             }
-            auto pairs = object.toPairs();
-            for (const auto &pair : pairs) {
-                addBlock(container, pair.key, pair.value);
+            const auto &objectData = object.data();
+            const auto &objectOrder = object.order();
+            for (const auto &key : objectOrder) {
+                addBlock(container, key, objectData.at(key));
             }
             container.add(std::addressof(npos), sizeof(npos));
             *reinterpret_cast<pos_t*>(container.data()) = container.size();
@@ -1969,7 +2020,12 @@ namespace CU
 
         inline CU::JSONObject _BinaryToObject(const byte_t* binary)
         {
-            static const auto addItem = [](JSONObject &object, const byte_t* binary, pos_t block_offset) -> pos_t {
+            static const auto addItem = [](
+                std::unordered_map<std::string, JSONItem> &objectData, 
+                std::vector<std::string> &objectOrder,
+                const byte_t* binary, 
+                pos_t block_offset
+            ) -> pos_t {
                 auto block_size = *reinterpret_cast<const pos_t*>(_Move_Ptr(binary, block_offset));
                 if (block_size == npos) {
                     return npos;
@@ -1980,28 +2036,36 @@ namespace CU
                 auto data = _Move_Ptr(binary, (block_offset + sizeof(block_size) + sizeof(type) + key_size));
                 switch (type) {
                     case JSONItem::ItemType::ITEM_NULL:
-                        object.add(key, nullptr);
+                        objectData.emplace(key, nullptr);
+                        objectOrder.emplace_back(key);
                         break;
                     case JSONItem::ItemType::BOOLEAN:
-                        object.add(key, *reinterpret_cast<const bool*>(data));
+                        objectData.emplace(key, *reinterpret_cast<const bool*>(data));
+                        objectOrder.emplace_back(key);
                         break;
                     case JSONItem::ItemType::INTEGER:
-                        object.add(key, *reinterpret_cast<const int*>(data));
+                        objectData.emplace(key, *reinterpret_cast<const int*>(data));
+                        objectOrder.emplace_back(key);
                         break;
                     case JSONItem::ItemType::LONG:
-                        object.add(key, *reinterpret_cast<const int64_t*>(data));
+                        objectData.emplace(key, *reinterpret_cast<const int64_t*>(data));
+                        objectOrder.emplace_back(key);
                         break;
                     case JSONItem::ItemType::DOUBLE:
-                        object.add(key, *reinterpret_cast<const double*>(data));
+                        objectData.emplace(key, *reinterpret_cast<const double*>(data));
+                        objectOrder.emplace_back(key);
                         break;
                     case JSONItem::ItemType::STRING:
-                        object.add(key, reinterpret_cast<const char*>(data));
+                        objectData.emplace(key, reinterpret_cast<const char*>(data));
+                        objectOrder.emplace_back(key);
                         break;
                     case JSONItem::ItemType::ARRAY:
-                        object.add(key, _BinaryToArray(reinterpret_cast<const byte_t*>(data)));
+                        objectData.emplace(key, _BinaryToArray(reinterpret_cast<const byte_t*>(data)));
+                        objectOrder.emplace_back(key);
                         break;
                     case JSONItem::ItemType::OBJECT:
-                        object.add(key, _BinaryToObject(reinterpret_cast<const byte_t*>(data)));
+                        objectData.emplace(key, _BinaryToObject(reinterpret_cast<const byte_t*>(data)));
+                        objectOrder.emplace_back(key);
                         break;
                     default:
                         break;
@@ -2009,12 +2073,13 @@ namespace CU
                 return (block_offset + block_size);
             };
 
-            JSONObject object{};
+            std::unordered_map<std::string, JSONItem> objectData{};
+            std::vector<std::string> objectOrder{};
             pos_t size = _GetBinarySize(binary), offset = sizeof(pos_t);
             while (offset < size) {
-                offset = addItem(object, binary, offset);
+                offset = addItem(objectData, objectOrder, binary, offset);
             }
-            return object;
+            return JSONObject(std::move(objectData), std::move(objectOrder));
         }
 
         inline void SaveObject(const std::string &path, const JSONObject &object)
