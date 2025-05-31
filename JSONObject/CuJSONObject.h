@@ -702,7 +702,7 @@ namespace CU
                             if (number >= std::numeric_limits<int>::min() && number <= std::numeric_limits<int>::max()) {
                                 itemResult.resultVal = static_cast<int>(number);
                             } else {
-                                itemResult.resultVal = number;
+                                itemResult.resultVal = static_cast<int64_t>(number);
                             }
                         }
                         itemResult.endPos = pos + numberText.length();
