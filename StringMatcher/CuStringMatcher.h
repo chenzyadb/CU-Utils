@@ -15,20 +15,6 @@
 
 namespace CU
 {
-    class MatchExcept : public std::exception
-    {
-        public:
-            MatchExcept(const std::string &message) : message_(message) { }
-
-            const char* what() const noexcept override
-            {
-                return message_.data();
-            }
-
-        private:
-            const std::string message_;
-    };
-
     class StringMatcher
     {
         public:
@@ -54,7 +40,7 @@ namespace CU
                     switch (ruleText[pos]) {
                         case '\\':
                             if ((pos + 1) == ruleText.size()) {
-                                throw MatchExcept("Invalid matching rule");
+                                throw std::runtime_error("Invalid matching rule");
                             }
                             if (idx == RuleIdx::RULE_FRONT) {
                                 idx = RuleIdx::RULE_CONTENT;
@@ -68,7 +54,7 @@ namespace CU
                             } else if (idx == RuleIdx::RULE_CONTENT && matchBack) {
                                 matchBack = false;
                             } else {
-                                throw MatchExcept("Invalid matching rule");
+                                throw std::runtime_error("Invalid matching rule");
                             }
                             break;
                         case '|':
@@ -77,21 +63,21 @@ namespace CU
                             } else if (idx == RuleIdx::RULE_SET) {
                                 ruleContent += ruleText[pos];
                             } else {
-                                throw MatchExcept("Invalid matching rule");
+                                throw std::runtime_error("Invalid matching rule");
                             }
                             break;
                         case '(':
                             if (idx == RuleIdx::RULE_FRONT) {
                                 idx = RuleIdx::RULE_SET;
                             } else {
-                                throw MatchExcept("Invalid matching rule");
+                                throw std::runtime_error("Invalid matching rule");
                             }
                             break;
                         case ')':
                             if (idx == RuleIdx::RULE_SET) {
                                 idx = RuleIdx::RULE_CONTENT;
                             } else {
-                                throw MatchExcept("Invalid matching rule");
+                                throw std::runtime_error("Invalid matching rule");
                             }
                             break;
                         default:

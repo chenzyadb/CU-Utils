@@ -21,20 +21,6 @@ namespace CU
 {
     constexpr size_t _npos = static_cast<size_t>(-1);
 
-    class FormatExcept : public std::exception
-    {
-        public:
-            FormatExcept(const std::string &message) : message_(message) { }
-
-            const char* what() const noexcept override
-            {
-                return message_.data();
-            }
-
-        private:
-            const std::string message_;
-    };
-
     struct _Format_String
     {
         char stack_buffer[32];
@@ -451,14 +437,14 @@ namespace CU
                         }
                         break;
                     default:
-                        throw FormatExcept("Invalid format rule");
+                        throw std::runtime_error("Invalid format rule");
                 }
             } else if (*(format + pos) == '}') {
                 if (*(format + pos + 1) == '}') {
                     format_items.back().content.append('}');
                     pos += 2;
                 } else {
-                    throw FormatExcept("Invalid format rule");
+                    throw std::runtime_error("Invalid format rule");
                 }
             } else {
                 format_items.back().content.append(*(format + pos));
@@ -466,7 +452,7 @@ namespace CU
             }
         }
         if (pos == _npos) {
-            throw FormatExcept("Invalid format rule");
+            throw std::runtime_error("Invalid format rule");
         }
         return format_items;
     }
@@ -481,7 +467,7 @@ namespace CU
             content.append(iter->content);
             if (iter->arg_idx != -1) {
                 if (iter->arg_idx >= static_cast<int>(args_list.size())) {
-                    throw FormatExcept("Argument index out of bound");
+                    throw std::runtime_error("Too few function arguments");
                 }
                 if (iter->max_length < INT_MAX) {
                     args_list[iter->arg_idx].shrink(iter->max_length);
@@ -523,15 +509,15 @@ namespace CU
         {
             va_list args{};
             va_start(args, format);
-            len = vsnprintf(nullptr, 0, format, args) + 1;
+            len = std::vsnprintf(nullptr, 0, format, args) + 1;
             va_end(args);
         }
         if (len > 1) {
             auto buffer = new char[len];
-            memset(buffer, 0, len);
+            std::memset(buffer, 0, len);
             va_list args{};
             va_start(args, format);
-            vsnprintf(buffer, len, format, args);
+            std::vsnprintf(buffer, len, format, args);
             va_end(args);
             content = buffer;
             delete[] buffer;

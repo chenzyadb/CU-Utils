@@ -23,7 +23,7 @@ namespace CU
         public:
             enum class LogLevel : uint8_t {NONE, ERROR, WARN, INFO, DEBUG, VERBOSE};
 
-            static void Create(const LogLevel &level, const std::string &path)
+            static void Create(LogLevel level, const std::string &path)
             {
                 Instance_().setLogger_(level, path);
             }
@@ -83,7 +83,7 @@ namespace CU
                 return instance;
             }
 
-            void setLogger_(const LogLevel &level, const std::string &path)
+            void setLogger_(LogLevel level, const std::string &path)
             {
                 static const auto createFile = [](const std::string &filePath) -> bool {
                     auto fp = std::fopen(filePath.data(), "wt");
@@ -98,8 +98,7 @@ namespace CU
                     logLevel_ = level;
                     logPath_ = path;
                     if (createFile(logPath_)) {
-                        std::thread mainLoop(std::bind(&Logger::mainLoop_, this));
-                        mainLoop.detach();
+                        std::thread(std::bind(&Logger::mainLoop_, this)).detach();
                     }
                 }
             }
@@ -123,12 +122,11 @@ namespace CU
                             flushed();
                             queueCond_.wait(lock);
                         }
-                        writeQueue = logQueue_;
-                        logQueue_.clear();
+                        writeQueue.swap(logQueue_);
                     }
                     if (!writeQueue.empty()) {
-                        for (const auto &log : writeQueue) {
-                            std::fputs(log.data(), fp);
+                        for (const auto &logText : writeQueue) {
+                            std::fputs(logText.data(), fp);
                         }
                         std::fflush(fp);
                         writeQueue.clear();
@@ -136,37 +134,35 @@ namespace CU
                 }
             }
 
-            void joinLogQueue_(const LogLevel &level, const std::string &content)
+            void joinLogQueue_(LogLevel level, const std::string &content)
             {
-                static const auto getTimeInfo = []() -> std::string {
-                    auto now = std::chrono::system_clock::now();
-                    auto nowTime = std::chrono::system_clock::to_time_t(now);
-                    auto localTime = std::localtime(std::addressof(nowTime));
-                    return CU::CFormat("%02d-%02d %02d:%02d:%02d",
-                        localTime->tm_mon + 1, localTime->tm_mday, localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+                static const std::unordered_map<LogLevel, const char*> levelStrings = {
+                    {LogLevel::ERROR, " [E] "},
+                    {LogLevel::WARN, " [W] "},
+                    {LogLevel::INFO, " [I] "},
+                    {LogLevel::DEBUG, " [D] "},
+                    {LogLevel::VERBOSE, " [V] "}
                 };
 
-                std::unique_lock<std::mutex> lock(queueMutex_);
+                static const auto getTimeInfo = []() -> std::string {
+                    auto time_ptr = std::chrono::system_clock::now();
+                    auto time = std::chrono::system_clock::to_time_t(time_ptr);
+                    auto localTime = std::localtime(std::addressof(time));
+                    return CU::CFormat("%02d-%02d %02d:%02d:%02d",
+                        (localTime->tm_mon + 1), localTime->tm_mday, localTime->tm_hour, 
+                        localTime->tm_min, localTime->tm_sec);
+                };
+
                 if (level <= logLevel_) {
-                    switch (level) {
-                        case LogLevel::ERROR:
-                            logQueue_.emplace_back(getTimeInfo() + " [E] " + content + '\n');
-                            break;
-                        case LogLevel::WARN:
-                            logQueue_.emplace_back(getTimeInfo() + " [W] " + content + '\n');
-                            break;
-                        case LogLevel::INFO:
-                            logQueue_.emplace_back(getTimeInfo() + " [I] " + content + '\n');
-                            break;
-                        case LogLevel::DEBUG:
-                            logQueue_.emplace_back(getTimeInfo() + " [D] " + content + '\n');
-                            break;
-                        case LogLevel::VERBOSE:
-                            logQueue_.emplace_back(getTimeInfo() + " [V] " + content + '\n');
-                            break;
-                        default:
-                            break;
-                    }
+                    std::string logText{};
+                    logText.reserve(content.size() + sizeof("00-00 00:00:00 [_] \n"));
+                    logText.append(getTimeInfo());
+                    logText.append(levelStrings.at(level));
+                    logText.append(content);
+                    logText.append("\n");
+
+                    std::unique_lock<std::mutex> lock(queueMutex_);
+                    logQueue_.emplace_back(std::move(logText));
                     queueCond_.notify_all();
                 }
             }

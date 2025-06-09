@@ -12,20 +12,6 @@
 
 namespace CU
 {
-    class PairListExcept : public std::exception
-    {
-        public:
-            PairListExcept(const std::string &message) : message_(message) { }
-
-            const char* what() const noexcept override
-            {
-                return message_.data();
-            }
-
-        private:
-            const std::string message_;
-    };
-
     template <typename _Key_Ty, typename _Val_Ty>
     class PairList
     {
@@ -172,7 +158,7 @@ namespace CU
                         return iter->value();
                     }
                 }
-                throw PairListExcept("Key not found");
+                throw std::runtime_error("Key not found");
             }
 
             const _Key_Ty &atValue(const _Val_Ty &value) const
@@ -182,7 +168,7 @@ namespace CU
                         return iter->key();
                     }
                 }
-                throw PairListExcept("Value not found");
+                throw std::runtime_error("Value not found");
             }
 
             bool containsKey(const _Key_Ty &key) const
