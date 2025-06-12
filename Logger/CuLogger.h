@@ -14,6 +14,7 @@
 #include <thread>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 #include "CuFormat.h"
 
 namespace CU
