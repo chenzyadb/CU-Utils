@@ -24,9 +24,9 @@ namespace CU
         public:
             enum class LogLevel : uint8_t {NONE, ERROR, WARN, INFO, DEBUG, VERBOSE};
 
-            static void Create(LogLevel level, const std::string &path)
+            static void Create(LogLevel level, const std::string &path, bool append = false)
             {
-                Instance_().setLogger_(level, path);
+                Instance_().setLogger_(level, path, append);
             }
 
             template <typename ..._Args>
@@ -84,7 +84,7 @@ namespace CU
                 return instance;
             }
 
-            void setLogger_(LogLevel level, const std::string &path)
+            void setLogger_(LogLevel level, const std::string &path, bool append)
             {
                 static const auto createFile = [](const std::string &filePath) -> bool {
                     auto fp = std::fopen(filePath.data(), "wt");
@@ -98,7 +98,7 @@ namespace CU
                 if (logLevel_ == LogLevel::NONE && level != LogLevel::NONE) {
                     logLevel_ = level;
                     logPath_ = path;
-                    if (createFile(logPath_)) {
+                    if (append || createFile(logPath_)) {
                         std::thread(std::bind(&Logger::mainLoop_, this)).detach();
                     }
                 }
